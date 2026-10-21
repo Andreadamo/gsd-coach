@@ -5,23 +5,8 @@ import { AREE, AREA_LABEL, FASI, FASE_LABEL, OBIETTIVI, type Area, type Exercise
 import { PitchEditor } from '../pitch/PitchEditor'
 import { clone, cx, nowIso, uid } from '../lib/util'
 import { Empty } from '../components/common'
+import { nextCode } from '../lib/codes'
 
-const PREFIX: Record<Area, string> = {
-  tecnica: 'TEC',
-  coordinativa: 'COO',
-  situazioni: 'SIT',
-  tattica: 'TAT',
-  possesso: 'POS',
-  finalizzazione: 'FIN',
-  partita: 'PAR',
-  portiere: 'POR',
-}
-
-function nextCode(all: Exercise[], area: Area) {
-  const p = PREFIX[area]
-  const nums = all.filter((e) => e.code.startsWith(p + '-')).map((e) => parseInt(e.code.slice(p.length + 1)) || 0)
-  return `${p}-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0')}`
-}
 
 function blank(all: Exercise[]): Exercise {
   return {

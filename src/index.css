@@ -1802,3 +1802,142 @@ input[type='date'] {
     white-space: nowrap;
   }
 }
+
+/* ===== assistente ===== */
+.account-link {
+  display: none;
+  margin-left: auto;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+.account-link svg {
+  width: 20px;
+  height: 20px;
+}
+.btn.rec {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+.listening {
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 0.9rem;
+  animation: blink 1.2s ease-in-out infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .listening {
+    animation: none;
+  }
+}
+.action.off {
+  opacity: 0.55;
+}
+.action header {
+  margin-bottom: 10px;
+}
+.date-sm {
+  width: auto;
+  min-height: 34px;
+  padding: 4px 8px;
+}
+.action-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.action-pitch {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.action-pitch > svg {
+  position: absolute;
+  inset: 0;
+}
+.title-input.sm {
+  font-size: 1.15rem;
+}
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.grid-4 label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.grid-4 .span2 {
+  grid-column: span 2;
+}
+.grid-4 input[type='number'] {
+  min-width: 0;
+}
+.avvisi {
+  margin: 10px 0 0;
+  padding: 8px 10px 8px 26px;
+  background: #fef3c7;
+  color: #78350f;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.msg ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--brand-2);
+}
+details[open] summary {
+  margin-bottom: 6px;
+}
+.ok-card {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.esiti {
+  margin: 0;
+  padding-left: 18px;
+}
+.sticky-confirm {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding: 10px 0;
+  z-index: 5;
+}
+@media (max-width: 760px) {
+  .account-link {
+    display: inline-flex;
+  }
+  .bottomnav {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .action-body {
+    grid-template-columns: 1fr;
+  }
+  .sticky-confirm {
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+  .grid-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+}

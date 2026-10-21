@@ -10,11 +10,13 @@ import SessionPrint from './pages/SessionPrint'
 import Planner from './pages/Planner'
 import Report from './pages/Report'
 import Settings from './pages/Settings'
+import Assistant from './pages/Assistant'
 
 const NAV = [
   { to: '/', label: 'Home', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>), end: true },
   { to: '/libreria', label: 'Libreria', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14"/><circle cx="12" cy="12" r="3"/></svg>) },
   { to: '/sedute', label: 'Sedute', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>) },
+  { to: '/assistente', label: 'Assistente', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>) },
   { to: '/planner', label: 'Planner', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>) },
   { to: '/report', label: 'Report', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>) },
   { to: '/impostazioni', label: 'Account', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>) },
@@ -45,6 +47,9 @@ export default function App() {
                 </NavLink>
               ))}
             </nav>
+            <NavLink to="/impostazioni" className="account-link" aria-label="Account">
+              {NAV[NAV.length - 1].icon}
+            </NavLink>
           </header>
           <main className="content">
             <Routes>
@@ -58,11 +63,12 @@ export default function App() {
               <Route path="/planner" element={<Planner />} />
               <Route path="/report" element={<Report />} />
               <Route path="/impostazioni" element={<Settings />} />
+              <Route path="/assistente" element={<Assistant />} />
               <Route path="*" element={<Home />} />
             </Routes>
           </main>
           <nav className="bottomnav">
-            {NAV.map((n) => (
+            {NAV.filter((n) => n.to !== '/impostazioni').map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end}>
                 <span className="ico">{n.icon}</span>
                 <span>{n.label}</span>
