@@ -26,7 +26,7 @@ export default function Settings() {
   }, [])
 
   const exportJson = () => {
-    const db: DB = { exercises: st.exercises, sessions: st.sessions, cycles: st.cycles }
+    const db: DB = { exercises: st.exercises, sessions: st.sessions, cycles: st.cycles, matches: st.matches, players: st.players, evaluations: st.evaluations }
     const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -43,6 +43,9 @@ export default function Settings() {
       for (const e of db.exercises) st.upsert('exercises', e)
       for (const s of db.sessions ?? []) st.upsert('sessions', s)
       for (const c of db.cycles ?? []) st.upsert('cycles', c)
+      for (const m of db.matches ?? []) st.upsert('matches', m)
+      for (const p of db.players ?? []) st.upsert('players', p)
+      for (const v of db.evaluations ?? []) st.upsert('evaluations', v)
       alert('Import completato.')
     } catch (err) {
       alert('Errore: ' + (err as Error).message)
@@ -150,7 +153,7 @@ export default function Settings() {
           )}
         </div>
         <p className="muted sm mt-s">
-          {st.exercises.length} esercizi · {st.sessions.length} sedute · {st.cycles.length} mesocicli
+          {st.exercises.length} esercizi · {st.sessions.length} sedute · {st.cycles.length} mesocicli · {st.matches.length} partite · {st.players.length} giocatori
         </p>
         {!cloudEnabled && (
           <button

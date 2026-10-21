@@ -6,4 +6,4 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 export const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null
 export const cloudEnabled = !!supabase
 
-export type Table = 'exercises' | 'sessions' | 'cycles'
+export type Table = 'exercises' | 'sessions' | 'cycles' | 'matches' | 'players' | 'evaluations'

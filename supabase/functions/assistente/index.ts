@@ -97,6 +97,53 @@ PLANNER
 - "la settimana X il focus è ..." = imposta_microciclo con data = lunedì di quella settimana, micro_focus, micro_obiettivi dalla lista.
 - Più richieste nello stesso testo = più azioni, nell'ordine detto.`
 
+const SCHEMA_PARTITA = {
+  type: 'object',
+  properties: {
+    sintesi: { type: 'string', description: '2-3 frasi: come è andata e cosa emerge' },
+    punti_forza: { type: 'array', items: { type: 'string' } },
+    carenze: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          obiettivo: { type: 'string', description: 'Uno degli OBIETTIVI AMMESSI' },
+          motivo: { type: 'string' },
+          priorita: { type: 'integer', description: '3 = urgente, 2 = importante, 1 = da curare' },
+        },
+        required: ['obiettivo', 'motivo', 'priorita'],
+      },
+    },
+    consigli: {
+      type: 'array',
+      description: '2-4 proposte per le prossime sedute',
+      items: {
+        type: 'object',
+        properties: {
+          titolo: { type: 'string' },
+          perche: { type: 'string' },
+          esercizi: { type: 'array', items: { type: 'string' }, description: 'Codici di esercizi ESISTENTI in libreria (max 3)' },
+        },
+        required: ['titolo', 'perche', 'esercizi'],
+      },
+    },
+    focus_settimana: { type: 'string', description: 'Focus del prossimo microciclo in poche parole' },
+  },
+  required: ['sintesi', 'punti_forza', 'carenze', 'consigli', 'focus_settimana'],
+}
+
+const ISTRUZIONI_PARTITA = `Sei il collaboratore tecnico di un allenatore di Scuola Calcio italiana (annata 2017, Pulcini U10, partite 7 contro 7).
+Ricevi la scheda di una PARTITA UFFICIALE (valutazioni 1-5 per aspetto, punti di forza, carenze, note) scritta dall'allenatore, spesso in modo informale.
+Analizzala e proponi come orientare le PROSSIME SEDUTE. Rispondi SOLO con JSON conforme allo schema.
+
+REGOLE
+- Basati SOLO su ciò che ha scritto l'allenatore e sulle valutazioni: non inventare episodi o giocatori.
+- Carenze: obiettivo preso SOLO dalla lista OBIETTIVI AMMESSI; massimo 5, ordinate per priorità. Le valutazioni 1-2 e le carenze scritte hanno la precedenza.
+- Consigli: per ogni consiglio scegli 1-3 esercizi dalla LIBRERIA (usa solo codici esistenti) adatti all'età, preferendo situazioni e partite a tema che trasferiscono in gara.
+- Mantieni anche i punti di forza (non vanno trascurati).
+- Linguaggio semplice e concreto, da allenatore di settore giovanile. Niente concetti da prima squadra.
+- Se la scheda è vuota o troppo generica, dillo nella sintesi e fai consigli prudenti.`
+
 function extractText(r: unknown): string | null {
   if (!r || typeof r !== 'object') return null
   const o = r as Record<string, unknown>
@@ -125,17 +172,17 @@ function parseJson(t: string) {
   return JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s)
 }
 
-async function callGemini(key: string, model: string, prompt: string) {
+async function callGemini(key: string, model: string, prompt: string, istr: string = ISTRUZIONI, schema: unknown = SCHEMA) {
   // 1) Interactions API (attuale)
   let res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model,
-      system_instruction: ISTRUZIONI,
+      system_instruction: istr,
       input: prompt,
       generation_config: { temperature: 0.2 },
-      response_format: { type: 'text', mime_type: 'application/json', schema: SCHEMA },
+      response_format: { type: 'text', mime_type: 'application/json', schema },
     }),
   })
   if (res.ok) return extractText(await res.json())
@@ -145,9 +192,9 @@ async function callGemini(key: string, model: string, prompt: string) {
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: ISTRUZIONI }] },
+      systemInstruction: { parts: [{ text: istr }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseJsonSchema: SCHEMA },
+      generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseJsonSchema: schema },
     }),
   })
   if (res.ok) return extractText(await res.json())
@@ -157,12 +204,12 @@ async function callGemini(key: string, model: string, prompt: string) {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** Riprova sui sovraccarichi (429/503) e passa ai modelli di riserva se il principale non risponde. */
-async function callWithFallback(key: string, models: string[], prompt: string): Promise<{ text: string | null; model: string }> {
+async function callWithFallbackFor(key: string, models: string[], prompt: string, istr: string, schema: unknown): Promise<{ text: string | null; model: string }> {
   let last: Error | null = null
   for (const m of models) {
     for (let i = 0; i < 3; i++) {
       try {
-        return { text: await callGemini(key, m, prompt), model: m }
+        return { text: await callGemini(key, m, prompt, istr, schema), model: m }
       } catch (e) {
         last = e as Error
         const msg = last.message
@@ -192,7 +239,7 @@ Deno.serve(async (req) => {
   const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.8-flash'
   const models = [model, ...(Deno.env.get('GEMINI_FALLBACK') || 'gemini-3.5-flash-lite,gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash').split(',').map((x) => x.trim()).filter((x) => x && x !== model)]
 
-  let body: { testo?: string; contesto?: string }
+  let body: { testo?: string; contesto?: string; modo?: string }
   try {
     body = await req.json()
   } catch {
@@ -202,7 +249,13 @@ Deno.serve(async (req) => {
   const contesto = (body.contesto ?? '').toString().slice(0, 30000)
   if (!testo) return json({ error: 'Testo vuoto' }, 400)
 
-  const prompt = `CONTESTO DELL'APP\n${contesto}\n\nCOMANDO DELL'ALLENATORE\n"""${testo}"""`
+  const partita = body.modo === 'partita'
+  const istr = partita ? ISTRUZIONI_PARTITA : ISTRUZIONI
+  const schema = partita ? SCHEMA_PARTITA : SCHEMA
+  const prompt = partita
+    ? `CONTESTO DELL'APP\n${contesto}\n\nSCHEDA PARTITA\n"""${testo}"""`
+    : `CONTESTO DELL'APP\n${contesto}\n\nCOMANDO DELL'ALLENATORE\n"""${testo}"""`
+  const callWithFallback = (k: string, ms: string[], p: string) => callWithFallbackFor(k, ms, p, istr, schema)
   try {
     let r = await callWithFallback(key, models, prompt)
     let parsed

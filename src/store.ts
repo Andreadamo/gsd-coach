@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { DB, Exercise, Mesocycle, Session } from './types'
+import type { DB, Evaluation, Exercise, Match, Mesocycle, Player, Session } from './types'
 import { SEED_EXERCISES as SEED_1, SEED_CYCLES, SEED_SESSIONS } from './data/seed'
 import { SEED_EXERCISES_2 } from './data/seed2'
 
@@ -19,7 +19,7 @@ function missingSeeds(list: Exercise[], from: number): Exercise[] {
 import { supabase, type Table } from './lib/supabase'
 import { nowIso } from './lib/util'
 
-type Entity = Exercise | Session | Mesocycle
+type Entity = Exercise | Session | Mesocycle | Match | Player | Evaluation
 type Key = keyof DB
 
 interface State extends DB {
@@ -36,7 +36,7 @@ interface State extends DB {
   pushAllToCloud: () => Promise<void>
 }
 
-const TABLE: Record<Key, Table> = { exercises: 'exercises', sessions: 'sessions', cycles: 'cycles' }
+const TABLE: Record<Key, Table> = { exercises: 'exercises', sessions: 'sessions', cycles: 'cycles', matches: 'matches', players: 'players', evaluations: 'evaluations' }
 
 let pushing = false
 let seededOnce = false
@@ -61,6 +61,9 @@ export const useStore = create<State>()(
       exercises: SEED_EXERCISES,
       sessions: SEED_SESSIONS,
       cycles: SEED_CYCLES,
+      matches: [],
+      players: [],
+      evaluations: [],
       seedVersion: SEED_VERSION,
       cloudSeedVersion: 1,
       userId: null,
@@ -137,7 +140,7 @@ export const useStore = create<State>()(
       pushAllToCloud: async () => {
         if (!supabase) return
         pushing = true
-        const snap = { exercises: get().exercises, sessions: get().sessions, cycles: get().cycles }
+        const snap = { exercises: get().exercises, sessions: get().sessions, cycles: get().cycles, matches: get().matches, players: get().players, evaluations: get().evaluations }
         for (const k of Object.keys(TABLE) as Key[]) {
           const rows = (snap[k] as Entity[]).map((v) => ({
             id: v.id,
@@ -158,12 +161,12 @@ export const useStore = create<State>()(
     }),
     {
       name: 'gsd-coach-db-v1',
-      version: 2,
-      partialize: (s) => ({ exercises: s.exercises, sessions: s.sessions, cycles: s.cycles, seedVersion: s.seedVersion, cloudSeedVersion: s.cloudSeedVersion }),
+      version: 4,
+      partialize: (s) => ({ exercises: s.exercises, sessions: s.sessions, cycles: s.cycles, matches: s.matches, players: s.players, evaluations: s.evaluations, seedVersion: s.seedVersion, cloudSeedVersion: s.cloudSeedVersion }),
       // dati salvati prima della libreria estesa: seedVersion assente = 1
       migrate: (persisted) => {
         const p = persisted as Partial<State>
-        return { ...p, seedVersion: p.seedVersion ?? 1, cloudSeedVersion: p.cloudSeedVersion ?? 1 } as State
+        return { ...p, matches: p.matches ?? [], players: p.players ?? [], evaluations: p.evaluations ?? [], seedVersion: p.seedVersion ?? 1, cloudSeedVersion: p.cloudSeedVersion ?? 1 } as State
       },
       onRehydrateStorage: () => (state) => {
         if (!state || state.seedVersion >= SEED_VERSION) return

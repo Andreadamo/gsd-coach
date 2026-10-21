@@ -3,7 +3,7 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { authState } from '../components/AuthGate'
 
-export type TargetType = 'session' | 'exercise'
+export type TargetType = 'session' | 'exercise' | 'match'
 export type Tipo = 'commento' | 'spunto' | 'modifica'
 
 export interface Comment {

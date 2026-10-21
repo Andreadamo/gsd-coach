@@ -9,6 +9,8 @@ import { clone, cx, fmtDate, uid } from '../lib/util'
 import { findMeso } from '../lib/stats'
 import { sessionMinutes } from './Sessions'
 import { FeedbackPanel } from '../feedback/FeedbackPanel'
+import { MatchHint } from './MatchHint'
+import { SessionEvaluations } from '../players/SessionEvaluations'
 import { FeedbackBadge } from '../feedback/FeedbackBadge'
 
 export default function SessionBuilder() {
@@ -215,6 +217,17 @@ export default function SessionBuilder() {
         </div>
       </div>
 
+      {s.stato === 'pianificata' && (
+        <MatchHint
+          date={s.data}
+          presenti={s.items.map((i) => i.exerciseId)}
+          onAdd={(eid) => {
+            const e = exMap.get(eid)
+            if (e) addEx(e, e.fase.includes('centrale') ? 'centrale' : e.fase[0])
+          }}
+        />
+      )}
+
       <div className={cx('builder-grid', pickerOpen && 'picker-open')}>
         <div className="phases">
           {FASI.map((fase) => {
@@ -295,6 +308,7 @@ export default function SessionBuilder() {
               </section>
             )
           })}
+          <SessionEvaluations s={s} onPresenti={(ids) => update({ presentiIds: ids, presenti: ids.length || undefined })} />
           <section className="card">
             <label className="lbl">Note finali / valutazione seduta</label>
             <textarea rows={3} value={s.noteFinali ?? ''} onChange={(e) => update({ noteFinali: e.target.value })} placeholder="Cosa ha funzionato, cosa riproporre, giocatori da seguire…" />

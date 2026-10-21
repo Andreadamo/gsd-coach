@@ -2,7 +2,7 @@
 
 create table if not exists public.comments (
   id          uuid primary key default gen_random_uuid(),
-  target_type text not null check (target_type in ('session','exercise')),
+  target_type text not null check (target_type in ('session','exercise','match')),
   target_id   uuid not null,
   author_id   uuid not null default auth.uid() references auth.users(id) on delete cascade,
   author_name text not null default '',
