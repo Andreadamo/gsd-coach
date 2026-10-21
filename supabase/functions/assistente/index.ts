@@ -5,6 +5,7 @@
 // Secrets richiesti (Supabase → Edge Functions → Secrets):
 //   GEMINI_API_KEY   chiave gratuita da https://aistudio.google.com
 //   GEMINI_MODEL     (opzionale) default "gemini-3.8-flash"
+//   GEMINI_FALLBACK  (opzionale) modelli di riserva separati da virgola
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const CORS = {
@@ -153,6 +154,27 @@ async function callGemini(key: string, model: string, prompt: string) {
   throw new Error(`Gemini: ${res.status} ${(await res.text()).slice(0, 300)} | ${err1.slice(0, 300)}`)
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** Riprova sui sovraccarichi (429/503) e passa ai modelli di riserva se il principale non risponde. */
+async function callWithFallback(key: string, models: string[], prompt: string): Promise<{ text: string | null; model: string }> {
+  let last: Error | null = null
+  for (const m of models) {
+    for (let i = 0; i < 3; i++) {
+      try {
+        return { text: await callGemini(key, m, prompt), model: m }
+      } catch (e) {
+        last = e as Error
+        const msg = last.message
+        if (/\b(404|NOT_FOUND|not found)\b/i.test(msg)) break // modello non disponibile: passa al successivo
+        if (!/\b(429|500|503|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand|overloaded)\b/i.test(msg)) throw last
+        await sleep(800 * (i + 1))
+      }
+    }
+  }
+  throw last ?? new Error('Gemini non disponibile')
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'Metodo non consentito' }, 405)
@@ -168,6 +190,7 @@ Deno.serve(async (req) => {
   const key = Deno.env.get('GEMINI_API_KEY')
   if (!key) return json({ error: 'Chiave Gemini non configurata (secret GEMINI_API_KEY).' }, 500)
   const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.8-flash'
+  const models = [model, ...(Deno.env.get('GEMINI_FALLBACK') || 'gemini-3.5-flash-lite,gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash').split(',').map((x) => x.trim()).filter((x) => x && x !== model)]
 
   let body: { testo?: string; contesto?: string }
   try {
@@ -181,17 +204,20 @@ Deno.serve(async (req) => {
 
   const prompt = `CONTESTO DELL'APP\n${contesto}\n\nCOMANDO DELL'ALLENATORE\n"""${testo}"""`
   try {
-    let out = await callGemini(key, model, prompt)
+    let r = await callWithFallback(key, models, prompt)
     let parsed
     try {
-      parsed = parseJson(out ?? '')
+      parsed = parseJson(r.text ?? '')
     } catch {
       // secondo tentativo, più rigido
-      out = await callGemini(key, model, prompt + '\n\nRISPONDI SOLO CON IL JSON, SENZA ALTRO TESTO.')
-      parsed = parseJson(out ?? '')
+      r = await callWithFallback(key, models, prompt + '\n\nRISPONDI SOLO CON IL JSON, SENZA ALTRO TESTO.')
+      parsed = parseJson(r.text ?? '')
     }
-    return json({ risultato: parsed, modello: model })
+    return json({ risultato: parsed, modello: r.model })
   } catch (e) {
-    return json({ error: (e as Error).message }, 502)
+    const msg = (e as Error).message
+    if (/\b(429|503|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand)\b/i.test(msg))
+      return json({ error: 'Gemini è sovraccarico in questo momento. Riprova tra qualche secondo.' }, 503)
+    return json({ error: msg }, 502)
   }
 })

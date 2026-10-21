@@ -135,6 +135,34 @@ function cleanObiettivi(v: unknown): string[] {
   return out.slice(0, 5)
 }
 
+const norm = (t: string) =>
+  t
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\bvs\b|\bc\b|\bcontro\b/g, ' contro ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+/** Esercizio di libreria equivalente a quello proposto (evita doppioni). */
+function findDuplicate(db: DB, n: RawNuovo): Exercise | undefined {
+  const t = norm(n.titolo ?? '')
+  if (!t) return undefined
+  const att = Number(n.attaccanti)
+  const dif = Number(n.difensori)
+  return db.exercises.find((e) => {
+    const et = norm(e.title)
+    if (et === t) return true
+    // titolo di libreria contenuto in quello proposto (es. "Rondo 4 contro 1" in "Rondo 4 contro 1 di attivazione")
+    if (et.length >= 8 && t.includes(et)) return true
+    // stessi numeri e stessa parola chiave di gioco (rondo / possesso / partita)
+    const key = ['rondo', 'possesso', 'partita'].find((k) => t.includes(k) && et.includes(k))
+    const nums = et.match(/(\d+) contro (\d+)/)
+    return !!key && !!nums && Number(nums[1]) === att && Number(nums[2]) === dif && e.area === n.area
+  })
+}
+
 function nextPlannedDate(db: DB, today: string): string | undefined {
   return db.sessions.filter((s) => s.data >= today && s.stato === 'pianificata').sort((a, b) => a.data.localeCompare(b.data))[0]?.data
 }
@@ -159,7 +187,14 @@ export function normalize(raw: RawRisposta, db: DB, today: string): Piano {
       const fase: Fase = (FASI as readonly string[]).includes(a.fase ?? '') ? (a.fase as Fase) : 'centrale'
       if (!a.fase) avvisi.push('Fase non indicata: parte centrale.')
       const code = str(a.esercizio_codice, 20).toUpperCase()
-      const esistente = code ? db.exercises.find((e) => e.code.toUpperCase() === code) : undefined
+      let esistente = code ? db.exercises.find((e) => e.code.toUpperCase() === code) : undefined
+      if (!esistente && a.nuovo) {
+        const dup = findDuplicate(db, a.nuovo)
+        if (dup) {
+          esistente = dup
+          avvisi.push(`Uso ${dup.code} «${dup.title}» già presente in libreria invece di crearne uno nuovo.`)
+        }
+      }
       let nuovo: NuovoSpec | undefined
       if (!esistente) {
         if (code) avvisi.push(`Il codice ${code} non esiste in libreria: creo un esercizio nuovo.`)
