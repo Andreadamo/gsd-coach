@@ -256,6 +256,18 @@ export function PitchEditor({ value, onChange }: { value: Diagram; onChange: (d:
     setStep(Math.max(0, Math.min(step, d.steps.length - 2)))
   }
 
+  // ---------- touch: scroll della pagina libero, tranne quando si trascina un elemento ----------
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const h = (e: TouchEvent) => {
+      const t = e.target as Element | null
+      if (t && t.closest('[data-hit]')) e.preventDefault()
+    }
+    svg.addEventListener('touchstart', h, { passive: false })
+    return () => svg.removeEventListener('touchstart', h)
+  }, [preview])
+
   // ---------- tastiera ----------
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -374,6 +386,7 @@ export function PitchEditor({ value, onChange }: { value: Diagram; onChange: (d:
             onPointerUp={onUp}
             onItemDown={onItemDown}
             onArrowDown={onArrowDown}
+            touchAction={tool === 'select' ? 'pan-x pan-y pinch-zoom' : 'none'}
           >
             {/* frecce dello step precedente in trasparenza, come guida */}
             {step > 0 &&
@@ -392,11 +405,11 @@ export function PitchEditor({ value, onChange }: { value: Diagram; onChange: (d:
             {selArrow && selArrow.step === step && tool === 'select' && (
               <g>
                 {(['from', 'to'] as const).map((k) => (
-                  <circle key={k} cx={selArrow[k].x} cy={selArrow[k].y} r={hr} fill="#38bdf8" stroke="#fff" strokeWidth={u * 0.08} style={{ cursor: 'move' }} onPointerDown={(e) => onHandleDown(e, k, selArrow.id)} />
+                  <circle key={k} data-hit="" cx={selArrow[k].x} cy={selArrow[k].y} r={hr} fill="#38bdf8" stroke="#fff" strokeWidth={u * 0.08} style={{ cursor: 'move' }} onPointerDown={(e) => onHandleDown(e, k, selArrow.id)} />
                 ))}
                 {(() => {
                   const c = control(selArrow.from, selArrow.to, (selArrow.curve ?? 0) / 2)
-                  return <rect x={c.x - hr} y={c.y - hr} width={hr * 2} height={hr * 2} rx={hr * 0.3} fill="#f472b6" stroke="#fff" strokeWidth={u * 0.08} style={{ cursor: 'move' }} onPointerDown={(e) => onHandleDown(e, 'curve', selArrow.id)} />
+                  return <rect data-hit="" x={c.x - hr} y={c.y - hr} width={hr * 2} height={hr * 2} rx={hr * 0.3} fill="#f472b6" stroke="#fff" strokeWidth={u * 0.08} style={{ cursor: 'move' }} onPointerDown={(e) => onHandleDown(e, 'curve', selArrow.id)} />
                 })()}
               </g>
             )}

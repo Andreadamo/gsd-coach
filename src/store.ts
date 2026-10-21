@@ -1,7 +1,21 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { DB, Exercise, Mesocycle, Session } from './types'
-import { SEED_EXERCISES, SEED_CYCLES, SEED_SESSIONS } from './data/seed'
+import { SEED_EXERCISES as SEED_1, SEED_CYCLES, SEED_SESSIONS } from './data/seed'
+import { SEED_EXERCISES_2 } from './data/seed2'
+
+const SEED_EXERCISES = [...SEED_1, ...SEED_EXERCISES_2]
+/** versione della libreria iniziale: alzarla quando si aggiungono esercizi seed */
+export const SEED_VERSION = 2
+const SEED_BATCHES: Record<number, Exercise[]> = { 1: SEED_1, 2: SEED_EXERCISES_2 }
+
+/** esercizi seed delle versioni successive a `from` che mancano nella lista */
+function missingSeeds(list: Exercise[], from: number): Exercise[] {
+  const have = new Set(list.map((e) => e.id))
+  const out: Exercise[] = []
+  for (let v = from + 1; v <= SEED_VERSION; v++) for (const e of SEED_BATCHES[v] ?? []) if (!have.has(e.id)) out.push(e)
+  return out
+}
 import { supabase, type Table } from './lib/supabase'
 import { nowIso } from './lib/util'
 
@@ -9,6 +23,8 @@ type Entity = Exercise | Session | Mesocycle
 type Key = keyof DB
 
 interface State extends DB {
+  seedVersion: number
+  cloudSeedVersion: number
   userId: string | null
   syncError: string | null
   setUser: (id: string | null) => void
@@ -44,6 +60,8 @@ export const useStore = create<State>()(
       exercises: SEED_EXERCISES,
       sessions: SEED_SESSIONS,
       cycles: SEED_CYCLES,
+      seedVersion: SEED_VERSION,
+      cloudSeedVersion: 1,
       userId: null,
       syncError: null,
       setUser: (id) => set({ userId: id }),
@@ -75,7 +93,7 @@ export const useStore = create<State>()(
       replaceAll: (db) => set({ ...db }),
 
       resetSeed: () =>
-        set({ exercises: SEED_EXERCISES, sessions: SEED_SESSIONS, cycles: SEED_CYCLES }),
+        set({ exercises: SEED_EXERCISES, sessions: SEED_SESSIONS, cycles: SEED_CYCLES, seedVersion: SEED_VERSION }),
 
       pullCloud: async () => {
         if (!supabase || pushing) return
@@ -94,10 +112,24 @@ export const useStore = create<State>()(
         const empty = !out.exercises?.length && !out.sessions?.length && !out.cycles?.length
         if (empty) {
           // primo accesso a un database vuoto: carica i dati locali (libreria iniziale)
-          if (get().exercises.length) await get().pushAllToCloud()
+          if (get().exercises.length) {
+            set({ cloudSeedVersion: SEED_VERSION })
+            await get().pushAllToCloud()
+          }
           return
         }
         set({ ...out, syncError: null })
+        // nuovi esercizi della libreria iniziale non ancora presenti nel cloud
+        const v = get().cloudSeedVersion
+        if (v < SEED_VERSION) {
+          const add = missingSeeds(out.exercises ?? [], v)
+          set({ cloudSeedVersion: SEED_VERSION })
+          if (add.length) {
+            set({ exercises: [...(out.exercises ?? []), ...add] })
+            const { error } = await supabase.from('exercises').upsert(add.map((e) => ({ id: e.id, data: e, updated_at: e.updatedAt })), { ignoreDuplicates: true })
+            if (error) set({ syncError: error.message })
+          }
+        }
       },
 
       pushAllToCloud: async () => {
@@ -124,7 +156,18 @@ export const useStore = create<State>()(
     }),
     {
       name: 'gsd-coach-db-v1',
-      partialize: (s) => ({ exercises: s.exercises, sessions: s.sessions, cycles: s.cycles }),
+      version: 2,
+      partialize: (s) => ({ exercises: s.exercises, sessions: s.sessions, cycles: s.cycles, seedVersion: s.seedVersion, cloudSeedVersion: s.cloudSeedVersion }),
+      // dati salvati prima della libreria estesa: seedVersion assente = 1
+      migrate: (persisted) => {
+        const p = persisted as Partial<State>
+        return { ...p, seedVersion: p.seedVersion ?? 1, cloudSeedVersion: p.cloudSeedVersion ?? 1 } as State
+      },
+      onRehydrateStorage: () => (state) => {
+        if (!state || state.seedVersion >= SEED_VERSION) return
+        const add = missingSeeds(state.exercises, state.seedVersion)
+        useStore.setState({ exercises: [...state.exercises, ...add], seedVersion: SEED_VERSION })
+      },
     },
   ),
 )

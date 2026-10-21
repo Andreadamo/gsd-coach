@@ -4,6 +4,7 @@ export const AREE = [
   'coordinativa',
   'situazioni',
   'tattica',
+  'possesso',
   'finalizzazione',
   'partita',
   'portiere',
@@ -15,6 +16,7 @@ export const AREA_LABEL: Record<Area, string> = {
   coordinativa: 'Coordinativa / motoria',
   situazioni: 'Situazioni 1v1 · 2v1',
   tattica: 'Tattica / smarcamento',
+  possesso: 'Possesso / rondo',
   finalizzazione: 'Finalizzazione',
   partita: 'Partita a tema',
   portiere: 'Portiere',
@@ -25,6 +27,7 @@ export const AREA_COLOR: Record<Area, string> = {
   coordinativa: '#0d9488',
   situazioni: '#d97706',
   tattica: '#7c3aed',
+  possesso: '#db2777',
   finalizzazione: '#dc2626',
   partita: '#16a34a',
   portiere: '#64748b',
@@ -60,6 +63,12 @@ export const OBIETTIVI = [
   'rapidità piedi',
   'cambi di direzione',
   'transizione',
+  'possesso palla',
+  'lettura di gioco',
+  'reattività',
+  'velocità',
+  'parata',
+  'cross',
 ] as const
 
 // ===== Campetto =====

@@ -11,6 +11,7 @@ const PREFIX: Record<Area, string> = {
   coordinativa: 'COO',
   situazioni: 'SIT',
   tattica: 'TAT',
+  possesso: 'POS',
   finalizzazione: 'FIN',
   partita: 'PAR',
   portiere: 'POR',
