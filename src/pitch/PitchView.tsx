@@ -251,6 +251,8 @@ export interface ViewProps {
   onPointerUp?: (e: React.PointerEvent<SVGSVGElement>) => void
   onItemDown?: (e: React.PointerEvent, it: PitchItem) => void
   onArrowDown?: (e: React.PointerEvent, ar: PitchArrow) => void
+  /** gesti touch consentiti al browser; default: scroll libero se il campo è solo da guardare */
+  touchAction?: string
 }
 
 export const PitchView = memo(function PitchView({
@@ -267,6 +269,7 @@ export const PitchView = memo(function PitchView({
   onPointerUp,
   onItemDown,
   onArrowDown,
+  touchAction,
 }: ViewProps) {
   const u = unit(d)
   const pad = u * 1.6
@@ -321,7 +324,7 @@ export const PitchView = memo(function PitchView({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      style={{ touchAction: 'none', display: 'block', width: '100%', height: '100%' }}
+      style={{ touchAction: touchAction ?? (onPointerDown ? 'none' : 'pan-x pan-y pinch-zoom'), display: 'block', width: '100%', height: '100%' }}
     >
       <defs>
         <linearGradient id="grass" x1="0" x2="0" y1="0" y2="1">
@@ -332,7 +335,7 @@ export const PitchView = memo(function PitchView({
       <rect x={-pad} y={-pad} width={w + pad * 2} height={h + pad * 2} fill="#1f5f29" rx={u * 0.6} />
       <FieldLines d={d} u={u} />
       {arrows.map((ar) => (
-        <g key={ar.id} onPointerDown={onArrowDown ? (e) => onArrowDown(e, ar) : undefined} style={{ cursor: onArrowDown ? 'pointer' : undefined }}>
+        <g key={ar.id} data-hit={onArrowDown ? '' : undefined} onPointerDown={onArrowDown ? (e) => onArrowDown(e, ar) : undefined} style={{ cursor: onArrowDown ? 'pointer' : undefined }}>
           <ArrowShape ar={trim(ar)} u={u} num={arrowNum(ar)} opacity={t > 0 ? Math.max(0.15, 1 - t * 1.2) : 1} selected={selectedId === ar.id} />
         </g>
       ))}
@@ -340,7 +343,7 @@ export const PitchView = memo(function PitchView({
         let p = overlay ? posAt(it, 0) : animPos(it, step, t, d.arrows, tol)
         if (it.type === 'ball' && (overlay || t === 0)) p = ballPos(p, step)
         return (
-          <g key={it.id} onPointerDown={onItemDown ? (e) => onItemDown(e, it) : undefined} style={{ cursor: onItemDown ? 'grab' : undefined }}>
+          <g key={it.id} data-hit={onItemDown ? '' : undefined} onPointerDown={onItemDown ? (e) => onItemDown(e, it) : undefined} style={{ cursor: onItemDown ? 'grab' : undefined }}>
             <ItemShape it={it} p={p} u={u} selected={selectedId === it.id} />
           </g>
         )

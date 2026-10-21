@@ -8,7 +8,7 @@ type I = [ItemType, string | undefined, number, number, Record<number, XY>?, num
 type A = [ArrowKind, number, number, number, number, number, number?]
 
 let ctr = 0
-function dg(preset: FieldPreset, w: number, h: number, steps: (string | [string, string])[], items: I[], arrows: A[]): Diagram {
+export function dg(preset: FieldPreset, w: number, h: number, steps: (string | [string, string])[], items: I[], arrows: A[]): Diagram {
   return {
     field: { preset, w, h },
     steps: steps.map((s) => (typeof s === 'string' ? { title: s } : { title: s[0], note: s[1] })),
@@ -21,9 +21,9 @@ function dg(preset: FieldPreset, w: number, h: number, steps: (string | [string,
   }
 }
 
-const T0 = '2026-10-01T00:00:00.000Z'
+export const T0 = '2026-10-01T00:00:00.000Z'
 
-function ex(n: number, e: Omit<Exercise, 'id' | 'updatedAt'>): Exercise {
+export function ex(n: number, e: Omit<Exercise, 'id' | 'updatedAt'>): Exercise {
   return { ...e, id: seedId(n), updatedAt: T0 }
 }
 

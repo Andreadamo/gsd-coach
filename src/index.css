@@ -1595,3 +1595,210 @@ dl.info dd {
 .pitch-frame {
   max-height: 72vh;
 }
+
+/* ===== mobile iOS / Android ===== */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+.shell {
+  min-height: 100dvh;
+}
+.topbar {
+  height: calc(58px + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+}
+.content {
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+}
+.center-screen {
+  min-height: 100dvh;
+}
+button,
+a,
+.chip,
+.tool {
+  touch-action: manipulation;
+}
+img,
+svg {
+  max-width: 100%;
+}
+.detail,
+.builder,
+.home,
+.report,
+.settings {
+  min-width: 0;
+}
+.tbl-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* iOS: niente zoom automatico sui campi di testo */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  .btn {
+    min-height: 44px;
+  }
+  .btn.sm,
+  .btn.icon.sm {
+    min-height: 38px;
+    min-width: 38px;
+  }
+  .chip {
+    min-height: 38px;
+  }
+}
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .topbar {
+    height: calc(52px + env(safe-area-inset-top, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .content {
+    padding: 16px max(14px, env(safe-area-inset-right, 0px)) calc(84px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  }
+  .bottomnav {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .page-head .row {
+    width: 100%;
+  }
+  .page-head .seg {
+    flex: 1;
+    overflow-x: auto;
+  }
+  .grid-cards {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+    gap: 10px;
+  }
+  .ex-body {
+    padding: 10px;
+  }
+  .ex-title {
+    font-size: 0.92rem;
+  }
+  .tags-line {
+    display: none;
+  }
+  .hero {
+    padding: 18px;
+  }
+  .hero .btn.lg {
+    flex: 1;
+  }
+  .title-input {
+    font-size: 1.25rem;
+    min-width: 0;
+  }
+  .code-input {
+    width: 96px !important;
+  }
+  .kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+  .kpi b {
+    font-size: 1.6rem;
+  }
+  .ob-row {
+    grid-template-columns: 105px 1fr 40px;
+  }
+  .tbl {
+    font-size: 0.8rem;
+  }
+  .tbl td,
+  .tbl th {
+    padding: 6px 4px;
+  }
+  .list-row {
+    gap: 10px;
+    padding: 10px;
+  }
+  .picker-open .picker {
+    top: 10vh;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .picker-open::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 35;
+  }
+  .t-row {
+    grid-template-columns: 1fr 80px 38px;
+  }
+  .editor {
+    padding: 8px;
+  }
+  .toolbar {
+    margin: 0 -8px;
+    padding: 0 8px 6px;
+  }
+  .tool {
+    min-width: 54px;
+    height: 52px;
+  }
+  .pitch-frame.editing {
+    max-height: 62vh;
+  }
+  .print-bar {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    padding: 8px 0;
+    z-index: 5;
+  }
+  .p-ex-body {
+    grid-template-columns: 1fr;
+  }
+  .p-head h1 {
+    font-size: 22px;
+  }
+  .p-summary {
+    font-size: 11px;
+  }
+  .print-page {
+    padding: 12px;
+  }
+  .detail-grid .stack .card {
+    padding: 14px;
+  }
+}
+@media (max-width: 380px) {
+  .bottomnav a {
+    font-size: 0.6rem;
+  }
+  .grid-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.card:has(> .tbl) {
+  overflow-x: auto;
+}
+@media (max-width: 760px) {
+  .p-summary {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
