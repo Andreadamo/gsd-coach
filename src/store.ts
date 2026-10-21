@@ -39,6 +39,7 @@ interface State extends DB {
 const TABLE: Record<Key, Table> = { exercises: 'exercises', sessions: 'sessions', cycles: 'cycles' }
 
 let pushing = false
+let seededOnce = false
 
 async function cloudUpsert(k: Key, v: Entity) {
   if (!supabase) return
@@ -111,8 +112,9 @@ export const useStore = create<State>()(
         }
         const empty = !out.exercises?.length && !out.sessions?.length && !out.cycles?.length
         if (empty) {
-          // primo accesso a un database vuoto: carica i dati locali (libreria iniziale)
-          if (get().exercises.length) {
+          // primo accesso a un database vuoto: carica i dati locali (libreria iniziale), una sola volta
+          if (get().exercises.length && !seededOnce) {
+            seededOnce = true
             set({ cloudSeedVersion: SEED_VERSION })
             await get().pushAllToCloud()
           }

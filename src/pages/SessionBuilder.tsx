@@ -129,6 +129,9 @@ export default function SessionBuilder() {
           <Link to={`/seduta/${s.id}/stampa`} className="btn primary" onClick={() => s && upsert('sessions', s)}>
             ⎙ Stampa / PDF
           </Link>
+          <Link to={`/assistente?data=${s.data}`} className="btn">
+            🎙 Assistente
+          </Link>
           <button className="btn" onClick={duplicate}>
             Duplica
           </button>
