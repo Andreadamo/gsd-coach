@@ -6,6 +6,7 @@ import { aggregate, findMeso, pct } from '../lib/stats'
 import { fmtDate, todayStr } from '../lib/util'
 import { ExerciseCard } from '../components/common'
 import { newSession, sessionMinutes } from './Sessions'
+import { RecentFeedback } from '../feedback/RecentFeedback'
 
 export default function Home() {
   const sessions = useStore((s) => s.sessions)
@@ -106,6 +107,8 @@ export default function Home() {
           </Link>
         </section>
       </div>
+
+      <RecentFeedback />
 
       <div className="row between mt mb-s">
         <h3>Esercizi recenti</h3>

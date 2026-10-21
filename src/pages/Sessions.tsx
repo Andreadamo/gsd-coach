@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { Empty, PageHead } from '../components/common'
 import { cx, fmtDate, monthKey, monthLabel, nowIso, todayStr, uid } from '../lib/util'
 import type { Session } from '../types'
+import { FeedbackBadge } from '../feedback/FeedbackBadge'
 
 export function newSession(data: string, extra?: Partial<Session>): Session {
   return {
@@ -82,6 +83,7 @@ export default function Sessions() {
                       {s.gruppo} · {s.items.length} esercizi · {s.obiettivo || '—'}
                     </div>
                   </div>
+                  <FeedbackBadge type="session" id={s.id} compact />
                   <div className={cx('mins', tot > s.durataTarget && 'over')}>
                     {tot}/{s.durataTarget}′
                   </div>

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { Session as AuthSession } from '@supabase/supabase-js'
 import { cloudEnabled, supabase } from '../lib/supabase'
 import { useStore } from '../store'
+import { startFeedRealtime } from '../feedback/useComments'
 
 export interface Member {
   user_id: string
@@ -42,13 +43,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const m = (data as Member) ?? null
         setMember(m)
         authState.member = m
-        if (m?.approvato) await pull()
+        if (m?.approvato) {
+          await pull()
+          startFeedRealtime()
+        }
         setLoading(false)
       })
     // realtime: ricarica quando un altro mister modifica
     const ch = supabase
       .channel('db')
-      .on('postgres_changes', { event: '*', schema: 'public' }, () => void pull())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises' }, () => void pull())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => void pull())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cycles' }, () => void pull())
       .subscribe()
     return () => {
       void supabase?.removeChannel(ch)
