@@ -5,6 +5,7 @@ import { AreaBadge, Empty } from '../components/common'
 import { PitchPlayer } from '../pitch/PitchPlayer'
 import { FASE_LABEL } from '../types'
 import { clone, fmtDate, uid } from '../lib/util'
+import { FeedbackPanel } from '../feedback/FeedbackPanel'
 
 export default function ExerciseDetail() {
   const { id } = useParams()
@@ -136,6 +137,7 @@ export default function ExerciseDetail() {
             </dl>
             {e.fonte && <p className="muted sm mt-s">Fonte: {e.fonte}</p>}
           </section>
+          <FeedbackPanel type="exercise" id={e.id} />
           <section className="card">
             <h3>Usa in una seduta</h3>
             {upcoming.length ? (

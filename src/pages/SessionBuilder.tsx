@@ -8,6 +8,8 @@ import { FilterBar, useExerciseFilter } from './Library'
 import { clone, cx, fmtDate, uid } from '../lib/util'
 import { findMeso } from '../lib/stats'
 import { sessionMinutes } from './Sessions'
+import { FeedbackPanel } from '../feedback/FeedbackPanel'
+import { FeedbackBadge } from '../feedback/FeedbackBadge'
 
 export default function SessionBuilder() {
   const { id } = useParams()
@@ -126,6 +128,7 @@ export default function SessionBuilder() {
           ← Sedute
         </Link>
         <div className="row gap-s wrap">
+          <FeedbackBadge type="session" id={s.id} />
           <Link to={`/seduta/${s.id}/stampa`} className="btn primary" onClick={() => s && upsert('sessions', s)}>
             ⎙ Stampa / PDF
           </Link>
@@ -296,6 +299,13 @@ export default function SessionBuilder() {
             <label className="lbl">Note finali / valutazione seduta</label>
             <textarea rows={3} value={s.noteFinali ?? ''} onChange={(e) => update({ noteFinali: e.target.value })} placeholder="Cosa ha funzionato, cosa riproporre, giocatori da seguire…" />
           </section>
+          <div id="feedback">
+            <FeedbackPanel
+              type="session"
+              id={s.id}
+              riferimenti={s.items.map((i) => exMap.get(i.exerciseId)).filter((e, k, a) => e && a.indexOf(e) === k).map((e) => ({ code: e!.code, title: e!.title }))}
+            />
+          </div>
         </div>
 
         <aside className="picker">
