@@ -55,7 +55,7 @@ begin
       create table if not exists public.%1$I (
         id         uuid primary key,
         data       jsonb not null,
-        owner_id   uuid not null default auth.uid() references auth.users(id) on delete set null,
+        owner_id   uuid default auth.uid() references auth.users(id) on delete set null,
         updated_at timestamptz not null default now()
       );
       alter table public.%1$I enable row level security;
