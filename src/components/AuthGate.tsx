@@ -50,11 +50,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setLoading(false)
       })
     // realtime: ricarica quando un altro mister modifica
+    // più modifiche ravvicinate (es. voti a raffica) = un solo ricaricamento
+    let t: ReturnType<typeof setTimeout> | undefined
+    const deb = () => {
+      clearTimeout(t)
+      t = setTimeout(() => void pull(), 900)
+    }
     const ch = supabase
       .channel('db')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises' }, () => void pull())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => void pull())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cycles' }, () => void pull())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cycles' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, deb)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'evaluations' }, deb)
       .subscribe()
     return () => {
       void supabase?.removeChannel(ch)

@@ -77,6 +77,7 @@ export interface FieldConfig {
   preset: FieldPreset
   w: number // metri (asse x)
   h: number // metri (asse y)
+  scala?: number // ingrandimento pedine (lavagna tattica)
 }
 
 export type ItemType =
@@ -174,6 +175,7 @@ export interface Session {
   obiettivo: string
   items: SessionItem[]
   presenti?: number
+  presentiIds?: string[]
   noteFinali?: string
   stato: 'pianificata' | 'svolta'
   ownerId?: string
@@ -200,8 +202,94 @@ export interface Mesocycle {
   updatedAt: string
 }
 
+// ===== Partita ufficiale =====
+/** Aspetti valutati dopo la partita (1 = molto carente … 5 = punto di forza). */
+export const ASPETTI = [
+  { id: 'costruzione', label: 'Costruzione dal basso', obiettivi: ['passaggio', 'smarcamento', 'controllo orientato'] },
+  { id: 'possesso', label: 'Possesso e circolazione', obiettivi: ['possesso palla', 'smarcamento', 'lettura di gioco'] },
+  { id: 'uno_contro_uno_off', label: '1c1 offensivo / dribbling', obiettivi: ['dribbling', 'conduzione', 'postura del corpo'] },
+  { id: 'uno_contro_uno_dif', label: '1c1 difensivo', obiettivi: ['marcatura', 'postura del corpo', 'pressione'] },
+  { id: 'collaborazione', label: 'Collaborazione (uno-due, sostegno)', obiettivi: ['uno-due', 'smarcamento', '3° uomo'] },
+  { id: 'finalizzazione', label: 'Finalizzazione', obiettivi: ['tiro', 'cross', 'smarcamento'] },
+  { id: 'non_possesso', label: 'Non possesso (pressione, coperture)', obiettivi: ['pressione', 'copertura', 'marcatura'] },
+  { id: 'transizioni', label: 'Transizioni', obiettivi: ['transizione', 'reattività', 'velocità'] },
+  { id: 'tecnica', label: 'Tecnica di base (stop, passaggio)', obiettivi: ['ricezione', 'passaggio', 'conduzione'] },
+  { id: 'portiere', label: 'Portiere', obiettivi: ['parata', 'reattività'] },
+] as const
+export type AspettoId = (typeof ASPETTI)[number]['id']
+
+export interface MatchAnalisi {
+  sintesi: string
+  puntiForza: string[]
+  carenze: { obiettivo: string; motivo: string; priorita: 1 | 2 | 3 }[]
+  consigli: { titolo: string; perche: string; exerciseIds: string[] }[]
+  focusSettimana: string
+  generataIl: string
+  modello?: string
+}
+
+export interface Match {
+  id: string
+  data: string
+  avversario: string
+  casa: boolean
+  gruppo: string
+  formato: string // es. "7 contro 7"
+  golFatti?: number
+  golSubiti?: number
+  valutazioni: Partial<Record<AspettoId, number>>
+  puntiForza: string
+  carenze: string
+  note: string
+  analisi?: MatchAnalisi
+  convocati?: string[] // playerId
+  titolari?: string[] // playerId (sottoinsieme dei convocati)
+  modulo?: string
+  lavagna?: Diagram
+  ownerId?: string
+  updatedAt: string
+}
+
+// ===== Rosa e valutazioni =====
+export type Piede = 'destro' | 'sinistro' | 'entrambi'
+export type Ruolo = 'portiere' | 'difensore' | 'centrocampista' | 'attaccante' | 'jolly'
+
+export interface Player {
+  id: string
+  nome: string
+  cognome: string
+  annata: number // anno di nascita
+  numero?: number
+  ruolo?: Ruolo
+  piede?: Piede
+  gruppo: string
+  attivo: boolean
+  note?: string
+  ownerId?: string
+  updatedAt: string
+}
+
+/** Voto di un mister: abilità di campo (scala 1-10) o esecuzione di un esercizio (scala 1-5). */
+export interface Evaluation {
+  id: string
+  playerId: string
+  data: string
+  tipo: 'abilita' | 'esecuzione'
+  valori?: Record<string, number> // tipo abilita: skillId → 1-10
+  exerciseId?: string // tipo esecuzione
+  sessionId?: string
+  voto?: number // tipo esecuzione: 1-5
+  nota?: string
+  autore?: string
+  ownerId?: string
+  updatedAt: string
+}
+
 export interface DB {
   exercises: Exercise[]
   sessions: Session[]
   cycles: Mesocycle[]
+  matches: Match[]
+  players: Player[]
+  evaluations: Evaluation[]
 }

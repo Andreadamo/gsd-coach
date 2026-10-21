@@ -7,7 +7,7 @@ export const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 
 /** Unità grafica in metri, scalata sulla dimensione del campo */
 export function unit(d: Diagram) {
   const m = Math.min(d.field.w, d.field.h)
-  return Math.max(0.45, Math.min(2.2, m / 24))
+  return Math.max(0.45, Math.min(2.2, m / 24)) * (d.field.scala ?? 1)
 }
 
 /** Posizione di un elemento allo step k (ultimo keyframe <= k) */

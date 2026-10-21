@@ -11,6 +11,7 @@ export function RecentFeedback() {
   const seen = useFeed((s) => s.seen)
   const sessions = useStore((s) => s.sessions)
   const exercises = useStore((s) => s.exercises)
+  const matches = useStore((s) => s.matches)
   if (!cloudEnabled) return null
   const me = authState.member?.user_id
   const nuovi = new Set(unreadOf(recent, seen, me).map((c) => c.id))
@@ -30,8 +31,9 @@ export function RecentFeedback() {
           {list.map((c) => {
             const s = c.target_type === 'session' ? sessions.find((x) => x.id === c.target_id) : undefined
             const e = c.target_type === 'exercise' ? exercises.find((x) => x.id === c.target_id) : undefined
-            const to = s ? `/seduta/${s.id}` : e ? `/esercizio/${e.id}` : undefined
-            const what = s ? `Seduta ${fmtDate(s.data)} · ${s.titolo}` : e ? `${e.code} · ${e.title}` : 'Elemento eliminato'
+            const p = c.target_type === 'match' ? matches.find((x) => x.id === c.target_id) : undefined
+            const to = s ? `/seduta/${s.id}` : e ? `/esercizio/${e.id}` : p ? `/partita/${p.id}` : undefined
+            const what = s ? `Seduta ${fmtDate(s.data)} · ${s.titolo}` : e ? `${e.code} · ${e.title}` : p ? `Partita ${fmtDate(p.data)}${p.avversario ? ' vs ' + p.avversario : ''}` : 'Elemento eliminato'
             const inner = (
               <>
                 <div className="row wrap gap-s sm">

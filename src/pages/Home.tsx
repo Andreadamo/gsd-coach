@@ -7,6 +7,41 @@ import { fmtDate, todayStr } from '../lib/util'
 import { ExerciseCard } from '../components/common'
 import { newSession, sessionMinutes } from './Sessions'
 import { RecentFeedback } from '../feedback/RecentFeedback'
+import { carenzeDaPartite } from '../lib/matchAdvice'
+
+function LastMatchCard() {
+  const matches = useStore((s) => s.matches)
+  const m = [...matches].sort((a, b) => b.data.localeCompare(a.data))[0]
+  if (!m) return null
+  const car = carenzeDaPartite([m]).slice(0, 3)
+  return (
+    <section className="card mt">
+      <div className="row between wrap gap-s">
+        <h3>
+          Ultima partita · {fmtDate(m.data, false)}
+          {m.avversario ? ` vs ${m.avversario}` : ''}
+          {m.golFatti != null && m.golSubiti != null ? ` (${m.golFatti}-${m.golSubiti})` : ''}
+        </h3>
+        <Link to={`/partita/${m.id}`} className="sm">
+          Apri →
+        </Link>
+      </div>
+      {m.analisi?.sintesi ? <p className="sm">{m.analisi.sintesi}</p> : null}
+      {car.length > 0 ? (
+        <div className="row wrap gap-xs">
+          <span className="sm muted">Da allenare:</span>
+          {car.map((c) => (
+            <span key={c.obiettivo} className="chip sm warn-chip">
+              {c.obiettivo}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="muted sm">Nessuna carenza segnata.</p>
+      )}
+    </section>
+  )
+}
 
 export default function Home() {
   const sessions = useStore((s) => s.sessions)
@@ -108,6 +143,7 @@ export default function Home() {
         </section>
       </div>
 
+      <LastMatchCard />
       <RecentFeedback />
 
       <div className="row between mt mb-s">
