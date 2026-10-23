@@ -2756,3 +2756,65 @@ details[open] summary {
     display: none;
   }
 }
+
+/* editor: strutture base */
+.basi-panel {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+  margin: 4px 0 8px;
+}
+.basi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.basi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--surface, #fff);
+  border-radius: 10px;
+  padding: 6px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.basi-card:hover,
+.basi-card:focus-visible {
+  border-color: var(--sel);
+}
+.basi-card b {
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+.basi-card small {
+  font-size: 0.7rem;
+  color: var(--ink-2);
+  line-height: 1.25;
+}
+.basi-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1f5f29;
+}
+.basi-thumb > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 640px) {
+  .basi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 50vh;
+  }
+}

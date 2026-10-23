@@ -4,6 +4,9 @@ import { clone, uid } from '../lib/util'
 import { ARROW_STYLE, ITEM_LABEL, ItemShape, PitchView } from './PitchView'
 import { control, dist, fieldAspect, posAt, unit } from './geom'
 import { PitchPlayer } from './PitchPlayer'
+import { TEMPLATES, applyTemplate, templatePreview } from './templates'
+
+const PREVIEWS = TEMPLATES.map((t) => ({ t, d: templatePreview(t) }))
 
 type Tool = 'select' | ItemType | `arrow:${ArrowKind}`
 
@@ -69,6 +72,8 @@ export function PitchEditor({ value, onChange }: { value: Diagram; onChange: (d:
   const [sel, setSel] = useState<string | null>(null)
   const [autoAnim, setAutoAnim] = useState(true)
   const [preview, setPreview] = useState(false)
+  const [basi, setBasi] = useState(false)
+  const [sostituisci, setSostituisci] = useState(false)
   const [draft, setDraft] = useState<PitchArrow | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<Drag | null>(null)
@@ -330,6 +335,10 @@ export function PitchEditor({ value, onChange }: { value: Diagram; onChange: (d:
           <span style={{ fontSize: 18 }}>✋</span>
           <small>Sposta</small>
         </button>
+        <button className={'tool' + (basi ? ' on' : '')} onClick={() => setBasi(!basi)} title="Strutture base: triangolo, rondo, porticine, slalom…" aria-expanded={basi}>
+          <span style={{ fontSize: 18 }}>▦</span>
+          <small>Basi</small>
+        </button>
         <span className="tsep" />
         {PLAYERS.map((t) => (
           <button key={t} className={'tool' + (tool === t ? ' on' : '')} onClick={() => setTool(t)} title={ITEM_LABEL[t]}>
@@ -352,6 +361,43 @@ export function PitchEditor({ value, onChange }: { value: Diagram; onChange: (d:
           </button>
         ))}
       </div>
+
+      {basi && (
+        <div className="basi-panel">
+          <div className="row between wrap gap-s">
+            <b>Strutture base</b>
+            <label className="check">
+              <input type="checkbox" checked={sostituisci} onChange={(e) => setSostituisci(e.target.checked)} /> Sostituisci quello che c'è
+            </label>
+          </div>
+          <p className="muted sm">
+            {sostituisci || d.items.length === 0
+              ? 'La struttura imposta anche il campo. Poi puoi spostare, togliere o aggiungere pedine una per una.'
+              : 'La struttura si aggiunge al centro del campo attuale. Poi puoi spostare, togliere o aggiungere pedine una per una.'}
+          </p>
+          <div className="basi-grid">
+            {PREVIEWS.map(({ t, d: pd }) => (
+              <button
+                key={t.id}
+                className="basi-card"
+                title={t.nota}
+                onClick={() => {
+                  commit(applyTemplate(d, t, sostituisci))
+                  setSel(null)
+                  setTool('select')
+                  setBasi(false)
+                }}
+              >
+                <span className="basi-thumb">
+                  <PitchView d={pd} />
+                </span>
+                <b>{t.nome}</b>
+                <small>{t.nota}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="steps-bar">
         {d.steps.map((s, i) => (
