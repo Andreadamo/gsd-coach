@@ -507,6 +507,57 @@ export const SEED_EXERCISES_3: Exercise[] = [
       ['run', 2, 12, 8, 3, 5],
     ]),
   }),
+  ex(317, {
+    code: 'FIN-08',
+    title: 'Finishing & 1v1 – Slalom, 1v1 e secondo tiratore',
+    area: 'finalizzazione',
+    fase: ['centrale'],
+    obiettivi: ['conduzione', 'cambi di direzione', 'dribbling', 'marcatura', 'velocità', 'tiro'],
+    eta: 'U9-U12',
+    giocatori: '3 file (attaccanti, difensori, secondi tiratori) + portiere',
+    spazio: 'Metà campo con porta',
+    durata: 12,
+    materiale: '4 coni arancioni, 5 paletti rossi, 1 manichino, porta, palloni (fila A e fila B con palla)',
+    perche: 'Conduzione con cambio di direzione sul manichino, lettura del 1v1 e finalizzazione sotto pressione; il secondo tiratore allena la conclusione rapida su seconda palla. Il difensore lavora su rapidità nello slalom e chiusura.',
+    descrizione:
+      'Setup: fila A (attaccanti, con palla) sui 4 coni arancioni a sinistra; fila B (difensori, con palla) dietro i 5 paletti rossi sul lato destro, in diagonale; manichino al centro vicino al cerchio di centrocampo; giocatore 3 (secondo tiratore) sul vertice sinistro dell’area con la sua fila dietro; portiere in porta.\nEsecuzione: 1 (fila A) parte dai coni e conduce verso il manichino; 2 (fila B) parte in contemporanea e fa lo slalom tra i paletti. 1 aggira il manichino e attacca la porta; 2 esce dallo slalom e chiude: 1v1 sul limite dell’area. 1 conclude in porta, subito dopo conclude 3 (secondo tiratore).\nRitmo continuo, recupero = rotazione in fila.',
+    rotazione:
+      '1: dopo il tiro va in fila dietro al secondo tiratore. 2: dopo il 1v1 va in fila dietro al giocatore 4 (fila paletti). 3: dopo il tiro recupera e torna in fila A sui coni (da verificare: nel video la rotazione non è chiara). Al giro successivo parte per primo il giocatore 4 dalla fila B.',
+    varianti: 'Tocchi limitati dopo il manichino. Tiro solo in area o anche da fuori. 2 difende al 100% o al 50%. Tempo massimo di conclusione 3–4″.',
+    coaching:
+      '1: conduzione veloce, cambio di direzione stretto sul manichino, testa alta per leggere da che parte arriva 2. 2: appoggi rapidi nello slalom, uscita aggressiva, chiusura sul lato forte. 3: pronto al tiro appena conclude 1, senza aspettare.',
+    fonte: 'Video drill (inviato da Andrea, 23/10/2026)',
+    diagram: dg('metacampo', 36, 36, [
+      ['Partenza', '1 conduce verso il manichino, 2 fa lo slalom tra i paletti'],
+      ['Manichino e uscita', '1 aggira il manichino, 2 esce dallo slalom e chiude'],
+      ['1v1', '1v1 sul limite dell’area'],
+      ['Tiro di 1', ''],
+      ['Secondo tiratore', '3 conclude subito dopo'],
+      'Fine',
+    ], [
+      ['gk', undefined, 35, 18],
+      ['cone', undefined, 1, 4], ['cone', undefined, 3, 4], ['cone', undefined, 5, 4], ['cone', undefined, 7, 4],
+      ['pole', undefined, 10, 31], ['pole', undefined, 12, 29.5], ['pole', undefined, 14, 28], ['pole', undefined, 16, 26.5], ['pole', undefined, 18, 25],
+      ['mannequin', undefined, 9, 18],
+      ['playerA', '1', 3, 6, { 1: [7, 15], 2: [11, 20], 3: [22, 16] }],
+      ['playerA', 'A', 1, 7.5],
+      ['playerB', '2', 8, 33, { 1: [17, 27.5], 2: [20.5, 22], 3: [24, 19] }],
+      ['playerB', '4', 6, 34.5],
+      ['playerA', '3', 23, 6.5],
+      ['playerA', '3', 20.5, 3.8],
+      ['ball', undefined, 3.6, 6.4, { 1: [7.6, 15.4], 2: [11.6, 20.4], 3: [22.6, 16.4], 4: [35.6, 16.8] }],
+      ['ball', undefined, 23.6, 7, { 5: [35.6, 20] }],
+    ], [
+      ['dribble', 0, 3, 6, 7, 15],
+      ['run', 0, 8, 33, 17, 27.5, 1.2],
+      ['dribble', 1, 7, 15, 11, 20, -2.5],
+      ['run', 1, 17, 27.5, 20.5, 22],
+      ['dribble', 2, 11, 20, 22, 16],
+      ['run', 2, 20.5, 22, 24, 19],
+      ['shot', 3, 22.6, 16.4, 35.6, 16.8],
+      ['shot', 4, 23.6, 7, 35.6, 20],
+    ]),
+  }),
 ]
 
 // ===== Sedute svolte =====
