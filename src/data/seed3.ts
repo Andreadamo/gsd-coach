@@ -559,7 +559,7 @@ export const SEED_EXERCISES_3: Exercise[] = [
     ]),
   }),
   ex(318, {
-    code: 'TEC-20',
+    code: 'TEC-22',
     title: 'Pass, set and play – combinazione con manichino',
     area: 'tecnica',
     fase: ['attivazione'],
@@ -618,7 +618,7 @@ export const SEED_EXERCISES_3: Exercise[] = [
     ]),
   }),
   ex(319, {
-    code: 'TEC-21',
+    code: 'TEC-23',
     title: 'Pass and press – triangolo',
     area: 'tecnica',
     fase: ['attivazione'],
