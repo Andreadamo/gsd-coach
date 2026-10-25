@@ -25,6 +25,5 @@ dist-ssr
 dist-single
 .env.local
 
-# dati personali (rosa/minori): mai nel repo pubblico
+# dati personali reali (rosa/minori): solo in locale; nel repo pubblico vanno i token (G01…)
 supabase/private/
-supabase/import_rosa*.sql
