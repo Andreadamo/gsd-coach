@@ -35,7 +35,7 @@ create or replace function public.comments_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if new.author_id <> old.author_id or new.target_id <> old.target_id or new.target_type <> old.target_type
-     or new.created_at <> old.created_at then
+     or new.created_at <> old.created_at or new.author_name <> old.author_name then
     raise exception 'Campo non modificabile';
   end if;
   if (new.body <> old.body or new.tipo <> old.tipo) and old.author_id <> auth.uid() then

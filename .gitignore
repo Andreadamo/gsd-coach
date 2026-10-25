@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 dist-single
 .env.local
+
+# dati personali (rosa/minori): mai nel repo pubblico
+supabase/private/
+supabase/import_rosa*.sql

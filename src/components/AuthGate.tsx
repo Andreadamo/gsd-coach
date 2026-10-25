@@ -57,7 +57,23 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setSession(s)
       if (!s || cached) setLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
+      // all'uscita niente dati della squadra (rosa di minori) lasciati nel browser
+      // (solo le chiavi dell'app: l'origine github.io è condivisa con altri siti dello stesso account)
+      if (e === 'SIGNED_OUT') {
+        saveMember(null)
+        void useStore.persist.clearStorage()
+        try {
+          localStorage.removeItem('gsd-assistente-storia')
+          localStorage.removeItem('gsd-feedback-visto')
+        } catch {
+          /* storage non disponibile */
+        }
+        location.reload()
+        return
+      }
+      setSession(s)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 
