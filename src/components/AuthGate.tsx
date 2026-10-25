@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { Session as AuthSession } from '@supabase/supabase-js'
 import { cloudEnabled, supabase } from '../lib/supabase'
 import { useStore } from '../store'
+import type { DB } from '../types'
 import { startFeedRealtime } from '../feedback/useComments'
 
 export interface Member {
@@ -14,18 +15,47 @@ export interface Member {
 
 export const authState: { member: Member | null } = { member: null }
 
+// ultimo profilo approvato visto in questo browser: permette di aprire subito l'app
+// con i dati locali, mentre verifica e sincronizzazione girano in background
+const MEMBER_KEY = 'gsd-member'
+function cachedMember(userId: string): Member | null {
+  try {
+    const m = JSON.parse(localStorage.getItem(MEMBER_KEY) ?? 'null') as Member | null
+    return m?.user_id === userId && m.approvato ? m : null
+  } catch {
+    return null
+  }
+}
+function saveMember(m: Member | null) {
+  try {
+    if (m?.approvato) localStorage.setItem(MEMBER_KEY, JSON.stringify(m))
+    else localStorage.removeItem(MEMBER_KEY)
+  } catch {
+    /* storage non disponibile */
+  }
+}
+
+const TABLES: (keyof DB)[] = ['exercises', 'sessions', 'cycles', 'matches', 'players', 'evaluations']
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null)
   const [member, setMember] = useState<Member | null>(null)
   const [loading, setLoading] = useState(cloudEnabled)
   const setUser = useStore((s) => s.setUser)
   const pull = useStore((s) => s.pullCloud)
+  const applyRemote = useStore((s) => s.applyRemote)
 
   useEffect(() => {
     if (!supabase) return
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      if (!data.session) setLoading(false)
+      const s = data.session
+      const cached = s ? cachedMember(s.user.id) : null
+      if (cached) {
+        authState.member = cached
+        setMember(cached)
+      }
+      setSession(s)
+      if (!s || cached) setLoading(false)
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => sub.subscription.unsubscribe()
@@ -39,36 +69,37 @@ export function AuthGate({ children }: { children: ReactNode }) {
       .select('*')
       .eq('user_id', session.user.id)
       .maybeSingle()
-      .then(async ({ data }) => {
+      .then(({ data, error }) => {
+        // errore di rete con profilo in cache: resta sui dati locali
+        if (error && authState.member) return
         const m = (data as Member) ?? null
         setMember(m)
         authState.member = m
+        saveMember(m)
+        setLoading(false)
         if (m?.approvato) {
-          await pull()
+          void pull()
           startFeedRealtime()
         }
-        setLoading(false)
       })
-    // realtime: ricarica quando un altro mister modifica
-    // più modifiche ravvicinate (es. voti a raffica) = un solo ricaricamento
+    // realtime: applica direttamente la riga cambiata; ricarica tutto solo se il payload è incompleto
+    // (più eventi incompleti ravvicinati = un solo ricaricamento)
     let t: ReturnType<typeof setTimeout> | undefined
     const deb = () => {
       clearTimeout(t)
       t = setTimeout(() => void pull(), 900)
     }
-    const ch = supabase
-      .channel('db')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'exercises' }, deb)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, deb)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cycles' }, deb)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, deb)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, deb)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'evaluations' }, deb)
-      .subscribe()
+    let ch = supabase.channel('db')
+    for (const k of TABLES)
+      ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: k }, (p) => {
+        if (!applyRemote(k, p)) deb()
+      })
+    ch.subscribe()
     return () => {
+      clearTimeout(t)
       void supabase?.removeChannel(ch)
     }
-  }, [session, setUser, pull])
+  }, [session, setUser, pull, applyRemote])
 
   if (!cloudEnabled) return <>{children}</>
   if (loading) return <div className="center-screen">Caricamento…</div>

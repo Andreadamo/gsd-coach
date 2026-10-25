@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthGate } from './components/AuthGate'
 import Home from './pages/Home'
@@ -7,15 +7,17 @@ import ExerciseDetail from './pages/ExerciseDetail'
 import ExerciseEdit from './pages/ExerciseEdit'
 import Sessions from './pages/Sessions'
 import SessionBuilder from './pages/SessionBuilder'
-import SessionPrint from './pages/SessionPrint'
-import Planner from './pages/Planner'
-import Report from './pages/Report'
 import Settings from './pages/Settings'
-import Assistant from './pages/Assistant'
 import Matches from './pages/Matches'
-import MatchDetail from './pages/MatchDetail'
 import Roster from './pages/Roster'
-import PlayerDetail from './pages/PlayerDetail'
+
+// pagine pesanti (grafici recharts, assistente) caricate solo quando servono
+const SessionPrint = lazy(() => import('./pages/SessionPrint'))
+const Planner = lazy(() => import('./pages/Planner'))
+const Report = lazy(() => import('./pages/Report'))
+const Assistant = lazy(() => import('./pages/Assistant'))
+const MatchDetail = lazy(() => import('./pages/MatchDetail'))
+const PlayerDetail = lazy(() => import('./pages/PlayerDetail'))
 
 const NAV = [
   { to: '/', label: 'Home', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>), end: true },
@@ -40,9 +42,11 @@ export default function App() {
   return (
     <AuthGate>
       {printMode ? (
-        <Routes>
-          <Route path="/seduta/:id/stampa" element={<SessionPrint />} />
-        </Routes>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/seduta/:id/stampa" element={<SessionPrint />} />
+          </Routes>
+        </Suspense>
       ) : (
         <div className="shell">
           <header className="topbar">
@@ -64,24 +68,26 @@ export default function App() {
             </NavLink>
           </header>
           <main className="content">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/libreria" element={<Library />} />
-              <Route path="/esercizio/nuovo" element={<ExerciseEdit />} />
-              <Route path="/esercizio/:id" element={<ExerciseDetail />} />
-              <Route path="/esercizio/:id/modifica" element={<ExerciseEdit />} />
-              <Route path="/sedute" element={<Sessions />} />
-              <Route path="/seduta/:id" element={<SessionBuilder />} />
-              <Route path="/planner" element={<Planner />} />
-              <Route path="/report" element={<Report />} />
-              <Route path="/impostazioni" element={<Settings />} />
-              <Route path="/assistente" element={<Assistant />} />
-              <Route path="/partite" element={<Matches />} />
-              <Route path="/partita/:id" element={<MatchDetail />} />
-              <Route path="/rosa" element={<Roster />} />
-              <Route path="/giocatore/:id" element={<PlayerDetail />} />
-              <Route path="*" element={<Home />} />
-            </Routes>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/libreria" element={<Library />} />
+                <Route path="/esercizio/nuovo" element={<ExerciseEdit />} />
+                <Route path="/esercizio/:id" element={<ExerciseDetail />} />
+                <Route path="/esercizio/:id/modifica" element={<ExerciseEdit />} />
+                <Route path="/sedute" element={<Sessions />} />
+                <Route path="/seduta/:id" element={<SessionBuilder />} />
+                <Route path="/planner" element={<Planner />} />
+                <Route path="/report" element={<Report />} />
+                <Route path="/impostazioni" element={<Settings />} />
+                <Route path="/assistente" element={<Assistant />} />
+                <Route path="/partite" element={<Matches />} />
+                <Route path="/partita/:id" element={<MatchDetail />} />
+                <Route path="/rosa" element={<Roster />} />
+                <Route path="/giocatore/:id" element={<PlayerDetail />} />
+                <Route path="*" element={<Home />} />
+              </Routes>
+            </Suspense>
           </main>
           <nav className="bottomnav">
             {MAIN.map((to) => NAV.find((n) => n.to === to)!).map((n) => (

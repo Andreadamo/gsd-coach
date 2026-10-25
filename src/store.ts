@@ -16,6 +16,7 @@ function missingSeeds(list: Exercise[], from: number): Exercise[] {
   for (let v = from + 1; v <= SEED_VERSION; v++) for (const e of SEED_BATCHES[v] ?? []) if (!have.has(e.id)) out.push(e)
   return out
 }
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { supabase, type Table } from './lib/supabase'
 import { nowIso } from './lib/util'
 
@@ -34,6 +35,21 @@ interface State extends DB {
   resetSeed: () => void
   pullCloud: () => Promise<void>
   pushAllToCloud: () => Promise<void>
+  /** applica un evento realtime; false = payload incompleto, serve un pullCloud */
+  applyRemote: (k: Key, p: RealtimePostgresChangesPayload<Record<string, unknown>>) => boolean
+}
+
+/** riusa gli oggetti già in memoria se non sono cambiati: i componenti memo (campetti) non si ridisegnano */
+function keepSame<T extends Entity>(prev: T[], next: T[]): T[] {
+  const old = new Map(prev.map((x) => [x.id, x]))
+  let same = prev.length === next.length
+  const out = next.map((x, i) => {
+    const o = old.get(x.id)
+    const keep = o && o.updatedAt === x.updatedAt && o.ownerId === x.ownerId ? o : x
+    if (keep !== prev[i]) same = false
+    return keep
+  })
+  return same ? prev : out
 }
 
 const TABLE: Record<Key, Table> = { exercises: 'exercises', sessions: 'sessions', cycles: 'cycles', matches: 'matches', players: 'players', evaluations: 'evaluations' }
@@ -102,16 +118,16 @@ export const useStore = create<State>()(
       pullCloud: async () => {
         if (!supabase || pushing) return
         const out: Partial<DB> = {}
-        for (const k of Object.keys(TABLE) as Key[]) {
-          const { data, error } = await supabase.from(TABLE[k]).select('data, owner_id')
+        const keys = Object.keys(TABLE) as Key[]
+        const res = await Promise.all(keys.map((k) => supabase!.from(TABLE[k]).select('data, owner_id')))
+        for (const [i, k] of keys.entries()) {
+          const { data, error } = res[i]
           if (error) {
             set({ syncError: error.message })
             return
           }
-          ;(out as Record<Key, Entity[]>)[k] = (data ?? []).map((r) => ({
-            ...(r.data as Entity),
-            ownerId: r.owner_id,
-          }))
+          const rows = (data ?? []).map((r) => ({ ...(r.data as Entity), ownerId: r.owner_id }))
+          ;(out as Record<Key, Entity[]>)[k] = keepSame(get()[k] as Entity[], rows)
         }
         const empty = !out.exercises?.length && !out.sessions?.length && !out.cycles?.length
         if (empty) {
@@ -157,6 +173,24 @@ export const useStore = create<State>()(
         }
         pushing = false
         await get().pullCloud()
+      },
+
+      applyRemote: (k, p) => {
+        const list = get()[k] as Entity[]
+        if (p.eventType === 'DELETE') {
+          const id = p.old?.id as string | undefined
+          if (!id) return false
+          if (list.some((x) => x.id === id)) set({ [k]: list.filter((x) => x.id !== id) } as Partial<State>)
+          return true
+        }
+        const row = p.new as { data?: Entity; owner_id?: string } | undefined
+        if (!row?.data?.id) return false
+        const ent = { ...row.data, ownerId: row.owner_id } as Entity
+        const i = list.findIndex((x) => x.id === ent.id)
+        // eco di una modifica locale, o evento più vecchio di quanto già in memoria
+        if (i >= 0 && list[i].updatedAt >= ent.updatedAt) return true
+        set({ [k]: i >= 0 ? list.map((x, j) => (j === i ? ent : x)) : [...list, ent] } as Partial<State>)
+        return true
       },
     }),
     {

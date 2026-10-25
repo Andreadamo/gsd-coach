@@ -497,6 +497,9 @@ input[type='checkbox'] {
   display: flex;
   flex-direction: column;
   transition: transform 0.12s, box-shadow 0.12s;
+  /* le card fuori schermo non vengono disegnate finché non si scorre */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
 }
 .ex-card:hover {
   transform: translateY(-2px);
