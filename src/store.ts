@@ -19,6 +19,7 @@ function missingSeeds(list: Exercise[], from: number): Exercise[] {
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { supabase, type Table } from './lib/supabase'
 import { nowIso } from './lib/util'
+import { enqueue, isRetryable, overlay, settle, type Queue, type QueueEntry } from './lib/syncQueue'
 
 type Entity = Exercise | Session | Mesocycle | Match | Player | Evaluation
 type Key = keyof DB
@@ -28,6 +29,10 @@ interface State extends DB {
   cloudSeedVersion: number
   userId: string | null
   syncError: string | null
+  /** modifiche locali non ancora salvate sul cloud */
+  queue: Queue
+  /** invia la coda al cloud; senza rete resta in attesa */
+  flush: () => Promise<void>
   setUser: (id: string | null) => void
   upsert: <K extends Key>(k: K, v: DB[K][number]) => void
   remove: (k: Key, id: string) => void
@@ -56,19 +61,40 @@ const TABLE: Record<Key, Table> = { exercises: 'exercises', sessions: 'sessions'
 
 let pushing = false
 let seededOnce = false
+let flushing: Promise<void> | null = null
 
-async function cloudUpsert(k: Key, v: Entity) {
-  if (!supabase) return
-  const { error } = await supabase
-    .from(TABLE[k])
-    .upsert({ id: v.id, data: v, updated_at: v.updatedAt })
+/** invia una voce della coda; true = fatto (o da scartare), false = riprovare più tardi */
+async function send(e: QueueEntry): Promise<boolean> {
+  if (!supabase) return true
+  const k = e.k as Key
+  if (e.op === 'delete') {
+    const { error } = await supabase.from(TABLE[k]).delete().eq('id', e.id)
+    if (error && isRetryable(error)) return false
+    if (error) useStore.setState({ syncError: error.message })
+    return true
+  }
+  const v = (useStore.getState()[k] as Entity[]).find((x) => x.id === e.id)
+  if (!v) return true // riga eliminata nel frattempo: ci pensa la voce di cancellazione
+  const { error } = await supabase.from(TABLE[k]).upsert({ id: v.id, data: v, updated_at: v.updatedAt })
+  if (error && isRetryable(error)) return false
   if (error) useStore.setState({ syncError: error.message })
+  return true
 }
 
-async function cloudDelete(k: Key, id: string) {
+async function runFlush() {
   if (!supabase) return
-  const { error } = await supabase.from(TABLE[k]).delete().eq('id', id)
-  if (error) useStore.setState({ syncError: error.message })
+  for (;;) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+    const entries = Object.values(useStore.getState().queue)
+    if (!entries.length) return
+    let sent = 0
+    for (const e of entries) {
+      if (!(await send(e))) return // rete assente: si riprova al ritorno online
+      useStore.setState((s) => ({ queue: settle(s.queue, e) }))
+      sent++
+    }
+    if (!sent) return
+  }
 }
 
 export const useStore = create<State>()(
@@ -84,6 +110,12 @@ export const useStore = create<State>()(
       cloudSeedVersion: 1,
       userId: null,
       syncError: null,
+      queue: {},
+
+      flush: () => {
+        if (!flushing) flushing = runFlush().finally(() => (flushing = null))
+        return flushing
+      },
       setUser: (id) => set({ userId: id }),
 
       upsert: (k, v) => {
@@ -92,13 +124,13 @@ export const useStore = create<State>()(
         const list = get()[k] as Entity[]
         const i = list.findIndex((x) => x.id === ent.id)
         const next = i >= 0 ? list.map((x) => (x.id === ent.id ? ent : x)) : [...list, ent]
-        set({ [k]: next } as Partial<State>)
-        void cloudUpsert(k, ent)
+        set({ [k]: next, queue: supabase ? enqueue(get().queue, { k, id: ent.id, op: 'upsert', at: ent.updatedAt }) : get().queue } as Partial<State>)
+        void get().flush()
       },
 
       remove: (k, id) => {
         const list = get()[k] as Entity[]
-        set({ [k]: list.filter((x) => x.id !== id) } as Partial<State>)
+        set({ [k]: list.filter((x) => x.id !== id), queue: supabase ? enqueue(get().queue, { k, id, op: 'delete', at: nowIso() }) : get().queue } as Partial<State>)
         if (k === 'exercises') {
           // pulisci riferimenti nelle sedute
           get().sessions.forEach((s) => {
@@ -107,7 +139,7 @@ export const useStore = create<State>()(
             }
           })
         }
-        void cloudDelete(k, id)
+        void get().flush()
       },
 
       replaceAll: (db) => set({ ...db }),
@@ -117,6 +149,8 @@ export const useStore = create<State>()(
 
       pullCloud: async () => {
         if (!supabase || pushing) return
+        // prima le modifiche fatte senza rete, così il cloud è aggiornato
+        await get().flush()
         const out: Partial<DB> = {}
         const keys = Object.keys(TABLE) as Key[]
         const res = await Promise.all(keys.map((k) => supabase!.from(TABLE[k]).select('data, owner_id')))
@@ -126,8 +160,10 @@ export const useStore = create<State>()(
             set({ syncError: error.message })
             return
           }
-          const rows = (data ?? []).map((r) => ({ ...(r.data as Entity), ownerId: r.owner_id }))
-          ;(out as Record<Key, Entity[]>)[k] = keepSame(get()[k] as Entity[], rows)
+          const rows: Entity[] = (data ?? []).map((r) => ({ ...(r.data as Entity), ownerId: r.owner_id }))
+          // modifiche locali ancora in coda (rete caduta durante l'invio): non vanno perse
+          const merged = overlay(rows, get()[k] as Entity[], get().queue, k)
+          ;(out as Record<Key, Entity[]>)[k] = keepSame(get()[k] as Entity[], merged)
         }
         const empty = !out.exercises?.length && !out.sessions?.length && !out.cycles?.length
         if (empty) {
@@ -177,6 +213,9 @@ export const useStore = create<State>()(
 
       applyRemote: (k, p) => {
         const list = get()[k] as Entity[]
+        const rid = ((p.new as { id?: string } | undefined)?.id ?? (p.old as { id?: string } | undefined)?.id) as string | undefined
+        // riga con una modifica locale non ancora inviata: vale la versione locale
+        if (rid && get().queue[`${k}:${rid}`]) return true
         if (p.eventType === 'DELETE') {
           const id = p.old?.id as string | undefined
           if (!id) return false
@@ -196,11 +235,11 @@ export const useStore = create<State>()(
     {
       name: 'gsd-coach-db-v1',
       version: 4,
-      partialize: (s) => ({ exercises: s.exercises, sessions: s.sessions, cycles: s.cycles, matches: s.matches, players: s.players, evaluations: s.evaluations, seedVersion: s.seedVersion, cloudSeedVersion: s.cloudSeedVersion }),
+      partialize: (s) => ({ exercises: s.exercises, sessions: s.sessions, cycles: s.cycles, matches: s.matches, players: s.players, evaluations: s.evaluations, seedVersion: s.seedVersion, cloudSeedVersion: s.cloudSeedVersion, queue: s.queue }),
       // dati salvati prima della libreria estesa: seedVersion assente = 1
       migrate: (persisted) => {
         const p = persisted as Partial<State>
-        return { ...p, matches: p.matches ?? [], players: p.players ?? [], evaluations: p.evaluations ?? [], seedVersion: p.seedVersion ?? 1, cloudSeedVersion: p.cloudSeedVersion ?? 1 } as State
+        return { ...p, matches: p.matches ?? [], players: p.players ?? [], evaluations: p.evaluations ?? [], seedVersion: p.seedVersion ?? 1, cloudSeedVersion: p.cloudSeedVersion ?? 1, queue: p.queue ?? {} } as State
       },
       onRehydrateStorage: () => (state) => {
         if (!state || state.seedVersion >= SEED_VERSION) return
@@ -213,3 +252,11 @@ export const useStore = create<State>()(
 
 export const useExercise = (id?: string) =>
   useStore((s) => s.exercises.find((e) => e.id === id))
+
+// ritorno della rete: invia le modifiche fatte offline; controllo periodico finché la coda non è vuota
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => void useStore.getState().flush())
+  setInterval(() => {
+    if (Object.keys(useStore.getState().queue).length) void useStore.getState().flush()
+  }, 30_000)
+}

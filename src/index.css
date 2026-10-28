@@ -2821,3 +2821,12 @@ details[open] summary {
     max-height: 50vh;
   }
 }
+
+/* ===== stato sincronizzazione (offline / modifiche in coda) ===== */
+.sync-status {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.sync-status + .account-link {
+  margin-left: 8px;
+}

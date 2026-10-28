@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { queueSize } from '../lib/syncQueue'
 import { useStore } from '../store'
 import { cloudEnabled, supabase } from '../lib/supabase'
 import { PageHead } from '../components/common'
@@ -70,11 +71,22 @@ export default function Settings() {
               <span className="pill ok">Cloud</span> Dati condivisi tra i mister (Supabase). Accesso: <b>{email}</b> {me && <span className="muted">· {me.ruolo}</span>}
             </p>
             {st.syncError && <p className="msg">Errore sincronizzazione: {st.syncError}</p>}
+            {queueSize(st.queue) > 0 && (
+              <p className="msg">
+                {queueSize(st.queue)} modifiche salvate su questo dispositivo, in attesa di rete per il cloud.
+              </p>
+            )}
             <div className="row gap-s wrap">
               <button className="btn" onClick={() => st.pullCloud()}>
                 ↻ Ricarica dal cloud
               </button>
-              <button className="btn" onClick={() => supabase!.auth.signOut()}>
+              <button
+                className="btn"
+                onClick={() => {
+                  if (queueSize(st.queue) && !confirm(`${queueSize(st.queue)} modifiche non sono ancora sul cloud e andrebbero perse. Uscire comunque?`)) return
+                  void supabase!.auth.signOut()
+                }}
+              >
                 Esci
               </button>
             </div>

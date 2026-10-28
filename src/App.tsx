@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthGate } from './components/AuthGate'
+import { SyncStatus } from './components/SyncStatus'
 import Home from './pages/Home'
 import Library from './pages/Library'
 import ExerciseDetail from './pages/ExerciseDetail'
@@ -63,6 +64,7 @@ export default function App() {
                 </NavLink>
               ))}
             </nav>
+            <SyncStatus />
             <NavLink to="/impostazioni" className="account-link" aria-label="Account">
               {NAV[NAV.length - 1].icon}
             </NavLink>
