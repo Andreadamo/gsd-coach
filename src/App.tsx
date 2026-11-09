@@ -14,6 +14,7 @@ import Roster from './pages/Roster'
 
 // pagine pesanti (grafici recharts, assistente) caricate solo quando servono
 const SessionPrint = lazy(() => import('./pages/SessionPrint'))
+const MonthlyReportPrint = lazy(() => import('./pages/MonthlyReportPrint'))
 const Planner = lazy(() => import('./pages/Planner'))
 const Report = lazy(() => import('./pages/Report'))
 const Assistant = lazy(() => import('./pages/Assistant'))
@@ -46,6 +47,7 @@ export default function App() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/seduta/:id/stampa" element={<SessionPrint />} />
+            <Route path="/report/riunione/stampa" element={<MonthlyReportPrint />} />
           </Routes>
         </Suspense>
       ) : (

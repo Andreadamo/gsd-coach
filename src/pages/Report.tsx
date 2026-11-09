@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useStore } from '../store'
 import { AREE, AREA_COLOR, AREA_LABEL, OBIETTIVI } from '../types'
 import { PageHead } from '../components/common'
 import { aggregate, pct } from '../lib/stats'
 import { addDays, fmtDate, monthKey, monthLabel, todayStr } from '../lib/util'
+import { monthRange } from '../lib/monthlyReport'
 
 type Period = 'mese' | '3mesi' | 'stagione' | 'meso' | 'custom'
 
@@ -26,6 +27,25 @@ export default function Report() {
   const [to, setTo] = useState(today)
   const gruppi = useMemo(() => [...new Set(sessions.map((s) => s.gruppo))], [sessions])
   const [gruppo, setGruppo] = useState('')
+  const nav = useNavigate()
+  // report riunione mensile: mese solare o intervallo libero (es. da riunione a riunione)
+  const mesi = useMemo(() => [...new Set([monthKey(today), ...sessions.filter((s) => s.stato === 'svolta').map((s) => monthKey(s.data))])].sort().reverse(), [sessions, today])
+  const [rMese, setRMese] = useState(monthKey(today))
+  const [rFrom, setRFrom] = useState(monthRange(monthKey(today))[0])
+  const [rTo, setRTo] = useState(today)
+  const sceltaMese = (m: string) => {
+    setRMese(m)
+    if (m) {
+      const [a, b] = monthRange(m)
+      setRFrom(a)
+      setRTo(b)
+    }
+  }
+  const apriRiunione = () => {
+    const q = new URLSearchParams({ da: rFrom, a: rTo })
+    if (gruppo) q.set('gruppo', gruppo)
+    nav(`/report/riunione/stampa?${q}`)
+  }
 
   const range = useMemo((): [string, string] => {
     if (period === 'mese') return [today.slice(0, 8) + '01', today]
@@ -131,6 +151,32 @@ export default function Report() {
           ))}
         </select>
       </div>
+
+      <section className="card mb no-print mr-launch">
+        <div className="row between wrap gap-s">
+          <div>
+            <h3 style={{ margin: 0 }}>Report riunione mensile</h3>
+            <p className="muted sm" style={{ margin: '2px 0 0' }}>
+              Sedute svolte, distribuzione per area vs target, presenze, partite e punti da discutere. Stampabile in PDF.
+            </p>
+          </div>
+        </div>
+        <div className="row wrap gap-s mt-s">
+          <select value={rMese} onChange={(e) => sceltaMese(e.target.value)} aria-label="Mese">
+            {mesi.map((m) => (
+              <option key={m} value={m}>
+                {monthLabel(m)}
+              </option>
+            ))}
+            <option value="">Intervallo libero</option>
+          </select>
+          <input type="date" value={rFrom} onChange={(e) => (setRMese(''), setRFrom(e.target.value))} aria-label="Dal" />
+          <input type="date" value={rTo} onChange={(e) => (setRMese(''), setRTo(e.target.value))} aria-label="Al" />
+          <button className="btn primary" disabled={!rFrom || !rTo || rFrom > rTo} onClick={apriRiunione}>
+            📄 Crea report riunione
+          </button>
+        </div>
+      </section>
 
       <div className="kpis">
         <div className="kpi">
