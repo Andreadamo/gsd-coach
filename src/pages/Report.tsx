@@ -41,8 +41,8 @@ export default function Report() {
       setRTo(b)
     }
   }
-  const apriRiunione = () => {
-    const q = new URLSearchParams({ da: rFrom, a: rTo })
+  const apriRiunione = (tipo: 'interno' | 'esterno') => {
+    const q = new URLSearchParams({ da: rFrom, a: rTo, tipo })
     if (gruppo) q.set('gruppo', gruppo)
     nav(`/report/riunione/stampa?${q}`)
   }
@@ -157,7 +157,7 @@ export default function Report() {
           <div>
             <h3 style={{ margin: 0 }}>Report riunione mensile</h3>
             <p className="muted sm" style={{ margin: '2px 0 0' }}>
-              Sedute svolte, distribuzione per area vs target, presenze, partite e punti da discutere. Stampabile in PDF.
+              Interno: con valutazione, scostamenti, presenze e partite. Per esterni: solo sedute ed esercizi svolti. Stampabili in PDF.
             </p>
           </div>
         </div>
@@ -172,8 +172,11 @@ export default function Report() {
           </select>
           <input type="date" value={rFrom} onChange={(e) => (setRMese(''), setRFrom(e.target.value))} aria-label="Dal" />
           <input type="date" value={rTo} onChange={(e) => (setRMese(''), setRTo(e.target.value))} aria-label="Al" />
-          <button className="btn primary" disabled={!rFrom || !rTo || rFrom > rTo} onClick={apriRiunione}>
-            📄 Crea report riunione
+          <button className="btn primary" disabled={!rFrom || !rTo || rFrom > rTo} onClick={() => apriRiunione('interno')} title="Con valutazione, scostamenti, presenze per bambino, partite e note dello staff">
+            📄 Report interno (staff)
+          </button>
+          <button className="btn" disabled={!rFrom || !rTo || rFrom > rTo} onClick={() => apriRiunione('esterno')} title="Solo sedute ed esercizi svolti: senza valutazioni, presenze nominative e note">
+            📤 Report per esterni
           </button>
         </div>
       </section>

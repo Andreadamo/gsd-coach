@@ -18,6 +18,7 @@ export default function MonthlyReportPrint() {
   const from = q.get('da') || defFrom
   const to = q.get('a') || defTo
   const gruppo = q.get('gruppo') || ''
+  const esterno = q.get('tipo') === 'esterno'
   const rep = useMemo(() => buildMonthlyReport({ sessions, exercises, cycles, matches, players }, from, to, gruppo), [sessions, exercises, cycles, matches, players, from, to, gruppo])
 
   return (
@@ -26,11 +27,12 @@ export default function MonthlyReportPrint() {
         <Link to="/report" className="btn">
           ← Report
         </Link>
+        <span className="muted sm">{esterno ? 'Versione per esterni: senza valutazione, presenze nominative e note dello staff' : 'Versione interna staff'}</span>
         <button className="btn primary" onClick={() => window.print()}>
           ⎙ Stampa / Salva PDF
         </button>
       </div>
-      <MonthlyReportView rep={rep} />
+      <MonthlyReportView rep={rep} esterno={esterno} />
     </div>
   )
 }
@@ -58,12 +60,16 @@ function ordered(s: Session): SessionItem[] {
 }
 
 /** Raccolta sedute del periodo: copertina con indice e minuti per area, valutazione, poi una scheda per seduta e una pagina per esercizio. */
-export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { rep: MonthlyReport; generato?: string; exercises?: Exercise[] }) {
+/**
+ * esterno = versione da condividere (famiglie, società): solo il lavoro svolto.
+ * Niente pagina di valutazione, target, presenze nominative, partite e note dello staff.
+ */
+export function MonthlyReportView({ rep, generato = todayStr(), exercises, esterno = false }: { rep: MonthlyReport; generato?: string; exercises?: Exercise[]; esterno?: boolean }) {
   const exMap = new Map((exercises ?? rep.esercizi.map((x) => x.e)).map((e) => [e.id, e]))
   const gruppo = rep.gruppo || rep.done[0]?.gruppo || 'Scuola calcio'
   const N = rep.done.length
-  // numeri di pagina: 1 copertina, 2 valutazione, poi per seduta 1 scheda + 1 pagina per esercizio
-  let pag = 3
+  // numeri di pagina: 1 copertina, 2 valutazione (solo interno), poi per seduta 1 scheda + 1 pagina per esercizio
+  let pag = esterno ? 2 : 3
   const pagine = rep.done.map((s) => {
     const p = pag
     pag += 1 + s.items.filter((it) => exMap.has(it.exerciseId)).length
@@ -77,7 +83,7 @@ export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { r
       <section className="rs-page">
         <h1 className="rs-h1">{gruppo} · Raccolta sedute</h1>
         <p className="rs-sub">
-          Dal {dd(rep.from)} al {ddy(rep.to)} · {N} sedute · sommario di valutazione delle aree di lavoro
+          Dal {dd(rep.from)} al {ddy(rep.to)} · {N} sedute · {esterno ? 'sommario delle aree di lavoro' : 'sommario di valutazione delle aree di lavoro'}
         </p>
         <h3 className="rs-h3">Indice</h3>
         <table className="rs-tbl">
@@ -120,7 +126,7 @@ export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { r
                   ))}
                   <th>Tot</th>
                   <th>%</th>
-                  {rep.mesocicli.length > 0 && <th>Target</th>}
+                  {!esterno && rep.mesocicli.length > 0 && <th>Target</th>}
                 </tr>
               </thead>
               <tbody>
@@ -138,7 +144,7 @@ export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { r
                         <b>{r.tot}</b>
                       </td>
                       <td>{r.perc}%</td>
-                      {rep.mesocicli.length > 0 && <td className={a?.delta != null && Math.abs(a.delta) >= 8 ? 'mr-warn' : ''}>{a?.target ?? 0}%</td>}
+                      {!esterno && rep.mesocicli.length > 0 && <td className={a?.delta != null && Math.abs(a.delta) >= 8 ? 'mr-warn' : ''}>{a?.target ?? 0}%</td>}
                     </tr>
                   )
                 })}
@@ -149,7 +155,7 @@ export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { r
                   ))}
                   <td>{rep.agg.minutiTot}</td>
                   <td>100%</td>
-                  {rep.mesocicli.length > 0 && <td />}
+                  {!esterno && rep.mesocicli.length > 0 && <td />}
                 </tr>
               </tbody>
             </table>
@@ -175,7 +181,8 @@ export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { r
         )}
       </section>
 
-      {/* ===== valutazione ===== */}
+      {/* ===== valutazione (solo staff) ===== */}
+      {!esterno && (
       <section className="rs-page">
         <h3 className="rs-h3">Valutazione</h3>
         <table className="rs-tbl">
@@ -271,17 +278,18 @@ export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { r
         <h3 className="rs-h3">Note della riunione / decisioni</h3>
         <div className="mr-lines" />
       </section>
+      )}
 
       {/* ===== sedute ===== */}
       {rep.done.map((s) => (
-        <SessionPages key={s.id} s={s} gruppo={gruppo} exMap={exMap} />
+        <SessionPages key={s.id} s={s} gruppo={gruppo} exMap={exMap} esterno={esterno} />
       ))}
       <p className="rs-small rs-foot">Generato da GSD Coach il {ddy(generato)}.</p>
     </>
   )
 }
 
-function SessionPages({ s, gruppo, exMap }: { s: Session; gruppo: string; exMap: Map<string, Exercise> }) {
+function SessionPages({ s, gruppo, exMap, esterno }: { s: Session; gruppo: string; exMap: Map<string, Exercise>; esterno: boolean }) {
   const items = ordered(s).filter((it) => exMap.has(it.exerciseId))
   let clock = 0
   const materiale = [...new Set(items.map((it) => exMap.get(it.exerciseId)!.materiale).filter(Boolean))]
@@ -354,16 +362,16 @@ function SessionPages({ s, gruppo, exMap }: { s: Session; gruppo: string; exMap:
           </>
         )}
         <Legenda />
-        {s.noteFinali && <div className="rs-box">📝 {s.noteFinali}</div>}
+        {!esterno && s.noteFinali && <div className="rs-box">📝 {s.noteFinali}</div>}
       </section>
       {items.map((it, i) => (
-        <ExercisePage key={it.uid} n={i + 1} it={it} e={exMap.get(it.exerciseId)!} />
+        <ExercisePage key={it.uid} n={i + 1} it={it} e={exMap.get(it.exerciseId)!} esterno={esterno} />
       ))}
     </>
   )
 }
 
-function ExercisePage({ n, it, e }: { n: number; it: SessionItem; e: Exercise }) {
+function ExercisePage({ n, it, e, esterno }: { n: number; it: SessionItem; e: Exercise; esterno: boolean }) {
   const perche = bullets(e.perche)
   const come = bullets(e.descrizione)
   const punti = bullets(e.coaching)
@@ -408,7 +416,7 @@ function ExercisePage({ n, it, e }: { n: number; it: SessionItem; e: Exercise })
           <Block t="Varianti" xs={varianti} />
         </div>
       </div>
-      {it.note && <div className="rs-box">📝 {it.note}</div>}
+      {!esterno && it.note && <div className="rs-box">📝 {it.note}</div>}
     </section>
   )
 }
