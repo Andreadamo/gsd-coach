@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store'
-import { AREA_COLOR, AREA_LABEL, FASE_LABEL, FASI, type Area, type Exercise } from '../types'
+import { AREA_COLOR, AREA_LABEL, FASE_LABEL, FASI, type Exercise, type Session, type SessionItem } from '../types'
 import { PitchView } from '../pitch/PitchView'
 import { buildMonthlyReport, monthRange, presenti, type MonthlyReport } from '../lib/monthlyReport'
-import { addDays, fmtDate, monthKey, todayStr } from '../lib/util'
+import { monthKey, todayStr } from '../lib/util'
 
 /** Pagina /report/riunione/stampa?da=YYYY-MM-DD&a=YYYY-MM-DD&gruppo=… */
 export default function MonthlyReportPrint() {
@@ -36,306 +36,397 @@ export default function MonthlyReportPrint() {
 }
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
-const minutiSeduta = (items: { minuti: number }[]) => sum(items.map((i) => i.minuti))
+const dd = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+const ddy = (d: string) => `${dd(d)}/${d.slice(0, 4)}`
 
-export function MonthlyReportView({ rep, generato = todayStr() }: { rep: MonthlyReport; generato?: string }) {
-  const exMap = new Map(rep.esercizi.map((x) => [x.e.id, x.e]))
-  const giorni = Math.round((new Date(rep.to).getTime() - new Date(rep.from).getTime()) / 864e5) + 1
-  const settimaneAttive = rep.settimane.filter((w) => w.sedute).length
-  const maxW = Math.max(1, ...rep.settimane.map((w) => w.minuti))
-  const maxOb = Math.max(1, ...rep.obiettivi.map((o) => o.min))
-  const b = rep.bilancio
+/** testo libero → elenco puntato (righe, altrimenti frasi) */
+function bullets(t?: string): string[] {
+  if (!t) return []
+  const righe = t
+    .split(/\n+/)
+    .map((x) => x.replace(/^[-•·*]\s*/, '').trim())
+    .filter(Boolean)
+  if (righe.length > 1) return righe
+  return t
+    .split(/(?<=[.;!?])\s+(?=[A-ZÀ-Ü0-9«"])/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+}
+
+function ordered(s: Session): SessionItem[] {
+  return FASI.flatMap((f) => s.items.filter((i) => i.fase === f))
+}
+
+/** Raccolta sedute del periodo: copertina con indice e minuti per area, valutazione, poi una scheda per seduta e una pagina per esercizio. */
+export function MonthlyReportView({ rep, generato = todayStr(), exercises }: { rep: MonthlyReport; generato?: string; exercises?: Exercise[] }) {
+  const exMap = new Map((exercises ?? rep.esercizi.map((x) => x.e)).map((e) => [e.id, e]))
+  const gruppo = rep.gruppo || rep.done[0]?.gruppo || 'Scuola calcio'
+  const N = rep.done.length
+  // numeri di pagina: 1 copertina, 2 valutazione, poi per seduta 1 scheda + 1 pagina per esercizio
+  let pag = 3
+  const pagine = rep.done.map((s) => {
+    const p = pag
+    pag += 1 + s.items.filter((it) => exMap.has(it.exerciseId)).length
+    return p
+  })
+  const maxTot = Math.max(1, ...rep.matrice.map((r) => r.tot))
 
   return (
     <>
-      <header className="p-head">
-        <div>
-          <div className="p-club">GSD Rosignano Solvay 1922 · Scuola Calcio · Riunione tecnica mensile</div>
-          <h1>Report allenamenti</h1>
-          <div className="p-meta">
-            <b>
-              {fmtDate(rep.from, false)} → {fmtDate(rep.to, false)}
-            </b>{' '}
-            ({giorni} giorni) · {rep.gruppo || 'tutti i gruppi'}
-          </div>
-          {rep.mesocicli.length > 0 && <div className="p-meta">Mesocicli: {rep.mesocicli.map((m) => `${m.nome} (${fmtDate(m.inizio, false)} – ${fmtDate(m.fine, false)})`).join(' · ')}</div>}
-        </div>
-        <img src="./favicon.svg" width={56} height={56} alt="" />
-      </header>
-
-      <div className="mr-kpis">
-        <Kpi l="Sedute svolte" v={rep.done.length} s={rep.nonSvolte.length ? `${rep.nonSvolte.length} pianificate non chiuse` : `${settimaneAttive} settimane attive`} />
-        <Kpi l="Minuti di lavoro" v={rep.agg.minutiTot} s={rep.done.length ? `${Math.round(rep.agg.minutiTot / rep.done.length)}′ medi a seduta` : ''} />
-        <Kpi l="Presenze medie" v={rep.presenzeMedie ?? '—'} s={rep.presenzeRegistrate ? `appello in ${rep.presenzeRegistrate} sedute` : 'appello non registrato'} />
-        <Kpi l="Esercizi diversi" v={rep.esercizi.length} s={`${rep.eserciziNuovi.length} nuovi nel periodo`} />
-        <Kpi l="Partite" v={rep.partite.length} s={rep.partite.length ? `V${b.v} N${b.p} P${b.s} · gol ${b.gf}-${b.gs}` : '—'} />
-      </div>
-
-      <section className="mr-sec mr-points">
-        <h2 className="p-phase">Punti per la riunione</h2>
-        <ol>
-          {rep.puntiRiunione.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ol>
-      </section>
-
-      <div className="mr-2col">
-        <section className="mr-sec">
-          <h2 className="p-phase">Distribuzione per area</h2>
-          <table className="p-summary">
-            <thead>
-              <tr>
-                <th>Area</th>
-                <th>Min</th>
-                <th>%</th>
-                {rep.mesocicli.length > 0 && <th>Target</th>}
-                {rep.mesocicli.length > 0 && <th>Δ</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {rep.aree.map((a) => (
-                <tr key={a.area}>
-                  <td>
-                    <i className="dot-c" style={{ background: AREA_COLOR[a.area] }} /> {AREA_LABEL[a.area]}
-                    <div className="mr-bar">
-                      <span style={{ width: `${a.perc}%`, background: AREA_COLOR[a.area] }} />
-                      {a.target !== null && <em style={{ left: `${a.target}%` }} />}
-                    </div>
-                  </td>
-                  <td>{a.min}</td>
-                  <td>{a.perc}%</td>
-                  {a.target !== null && <td>{a.target}%</td>}
-                  {a.delta !== null && <td className={Math.abs(a.delta) >= 8 ? 'mr-warn' : ''}>{a.delta > 0 ? `+${a.delta}` : a.delta}</td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="p-small">
-            Fasi: {rep.perFase.map((f) => `${FASE_LABEL[f.fase]} ${f.min}′ (${f.perc}%)`).join(' · ')}
-            {rep.mesocicli.length > 0 && ' · tacca nera = target del mesociclo'}
-          </p>
-        </section>
-
-        <section className="mr-sec">
-          <h2 className="p-phase">Obiettivi allenati</h2>
-          <div className="mr-ob">
-            {rep.obiettivi.slice(0, 14).map((o) => (
-              <div key={o.o} className="mr-ob-row">
-                <span>{o.o}</span>
-                <div className="mr-bar">
-                  <span style={{ width: `${(o.min / maxOb) * 100}%` }} />
-                </div>
-                <b>{o.min}′</b>
-              </div>
-            ))}
-          </div>
-          {rep.maiAllenati.length > 0 && (
-            <p className="p-small">
-              <b>Mai allenati:</b> {rep.maiAllenati.join(', ')}
-            </p>
-          )}
-        </section>
-      </div>
-
-      <section className="mr-sec">
-        <h2 className="p-phase">Andamento settimanale</h2>
-        <table className="p-summary">
+      {/* ===== copertina ===== */}
+      <section className="rs-page">
+        <h1 className="rs-h1">{gruppo} · Raccolta sedute</h1>
+        <p className="rs-sub">
+          Dal {dd(rep.from)} al {ddy(rep.to)} · {N} sedute · sommario di valutazione delle aree di lavoro
+        </p>
+        <h3 className="rs-h3">Indice</h3>
+        <table className="rs-tbl">
           <thead>
             <tr>
-              <th>Settimana</th>
-              <th>Sedute</th>
-              <th>Minuti</th>
-              <th style={{ width: '45%' }}>Aree</th>
-              <th>Presenze medie</th>
+              <th>Data</th>
+              <th>Focus seduta</th>
+              <th>Durata</th>
+              <th>Pres.</th>
+              <th>Pag.</th>
             </tr>
           </thead>
           <tbody>
-            {rep.settimane.map((w) => (
-              <tr key={w.lunedi}>
-                <td>
-                  {fmtDate(w.lunedi, false)} – {fmtDate(addDays(w.lunedi, 6), false)}
-                </td>
-                <td>{w.sedute}</td>
-                <td>{w.minuti}</td>
-                <td>
-                  <div className="mr-stack" style={{ width: `${(w.minuti / maxW) * 100}%` }}>
-                    {(Object.entries(w.aree) as [Area, number][]).map(([a, m]) => (
-                      <span key={a} title={AREA_LABEL[a]} style={{ flex: m, background: AREA_COLOR[a] }} />
-                    ))}
+            {rep.done.map((s, i) => (
+              <tr key={s.id}>
+                <td>{dd(s.data)}</td>
+                <td>{s.obiettivo ? `${s.titolo} — ${s.obiettivo}` : s.titolo}</td>
+                <td>{sum(s.items.map((x) => x.minuti))}′</td>
+                <td>{presenti(s) ?? '—'}</td>
+                <td>{pagine[i]}</td>
+              </tr>
+            ))}
+            {!N && (
+              <tr>
+                <td colSpan={5}>Nessuna seduta segnata come svolta nel periodo.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {N > 0 && (
+          <>
+            <h3 className="rs-h3">Minuti per area di lavoro</h3>
+            <table className="rs-tbl rs-num">
+              <thead>
+                <tr>
+                  <th>Area</th>
+                  {rep.done.map((s) => (
+                    <th key={s.id}>{s.data.slice(8, 10)}</th>
+                  ))}
+                  <th>Tot</th>
+                  <th>%</th>
+                  {rep.mesocicli.length > 0 && <th>Target</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {rep.matrice.map((r) => {
+                  const a = rep.aree.find((x) => x.area === r.area)
+                  return (
+                    <tr key={r.area}>
+                      <td>
+                        <i className="dot-c" style={{ background: AREA_COLOR[r.area] }} /> {AREA_LABEL[r.area]}
+                      </td>
+                      {r.perSeduta.map((m, i) => (
+                        <td key={i}>{m || '–'}</td>
+                      ))}
+                      <td>
+                        <b>{r.tot}</b>
+                      </td>
+                      <td>{r.perc}%</td>
+                      {rep.mesocicli.length > 0 && <td className={a?.delta != null && Math.abs(a.delta) >= 8 ? 'mr-warn' : ''}>{a?.target ?? 0}%</td>}
+                    </tr>
+                  )
+                })}
+                <tr className="rs-tot">
+                  <td>Totale</td>
+                  {rep.done.map((s) => (
+                    <td key={s.id}>{sum(s.items.filter((x) => exMap.has(x.exerciseId)).map((x) => x.minuti))}</td>
+                  ))}
+                  <td>{rep.agg.minutiTot}</td>
+                  <td>100%</td>
+                  {rep.mesocicli.length > 0 && <td />}
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="rs-chart">
+              {rep.matrice.map((r) => (
+                <div key={r.area} className="rs-chart-row">
+                  <span>{AREA_LABEL[r.area]}</span>
+                  <div>
+                    <i style={{ width: `${(r.tot / maxTot) * 100}%`, background: AREA_COLOR[r.area] }} />
+                    <b>{r.tot}′</b>
                   </div>
-                </td>
-                <td>{w.presenzeMedie ?? '—'}</td>
+                </div>
+              ))}
+            </div>
+            {rep.temi.length > 0 && (
+              <p className="rs-small">
+                <b>Temi trasversali dentro gli esercizi:</b> {rep.temi.slice(0, 10).map((t) => `${t.o} ${t.date.map((d) => d.slice(8, 10)).join('-')}`).join(' · ')}.
+              </p>
+            )}
+            {rep.mesocicli.length > 0 && <p className="rs-small">Mesocicli: {rep.mesocicli.map((m) => `${m.nome} (${dd(m.inizio)}–${dd(m.fine)}) · ${m.obiettivoGenerale}`).join(' — ')}</p>}
+          </>
+        )}
+      </section>
+
+      {/* ===== valutazione ===== */}
+      <section className="rs-page">
+        <h3 className="rs-h3">Valutazione</h3>
+        <table className="rs-tbl">
+          <thead>
+            <tr>
+              <th style={{ width: '22%' }}>Aspetto</th>
+              <th style={{ width: '40%' }}>Esito</th>
+              <th>Implicazione</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rep.valutazione.map((v) => (
+              <tr key={v.aspetto} className={v.alert ? 'rs-alert' : ''}>
+                <td>{v.aspetto}</td>
+                <td>{v.esito}</td>
+                <td>{v.implicazione}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <Legenda aree={[...new Set(rep.aree.filter((a) => a.min).map((a) => a.area))]} />
-      </section>
 
-      <section className="mr-sec mr-break">
-        <h2 className="p-phase">Registro sedute</h2>
-        {rep.done.map((s, i) => (
-          <article key={s.id} className="mr-sess">
-            <div className="mr-sess-head">
-              <span className="mr-n">{i + 1}</span>
-              <b>{fmtDate(s.data)}</b>
-              <span className="mr-title">{s.titolo}</span>
-              <span className="mr-meta">
-                {minutiSeduta(s.items)}′ · presenti {presenti(s) ?? '—'}
-              </span>
-            </div>
-            {s.obiettivo && (
-              <div className="p-small">
-                <b>Obiettivo:</b> {s.obiettivo}
-              </div>
-            )}
-            <table className="mr-items">
+        <h3 className="rs-h3">Scostamenti rilevanti</h3>
+        <ul className="rs-ul">
+          {rep.puntiRiunione.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+
+        {rep.azioni.length > 0 && (
+          <>
+            <h3 className="rs-h3">Azioni per le prossime sedute</h3>
+            <ul className="rs-ul">
+              {rep.azioni.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {rep.partite.length > 0 && (
+          <>
+            <h3 className="rs-h3">Partite del periodo</h3>
+            <table className="rs-tbl">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Partita</th>
+                  <th>Ris.</th>
+                  <th>Punti di forza</th>
+                  <th>Carenze</th>
+                </tr>
+              </thead>
               <tbody>
-                {FASI.flatMap((f) =>
-                  s.items
-                    .filter((it) => it.fase === f)
-                    .map((it) => {
-                      const e = exMap.get(it.exerciseId)
-                      return (
-                        <tr key={it.uid}>
-                          <td className="mr-fase">{FASE_LABEL[f]}</td>
-                          <td>
-                            {e ? (
-                              <>
-                                <span className="mr-code" style={{ background: AREA_COLOR[e.area] }}>
-                                  {e.code}
-                                </span>{' '}
-                                {e.title}
-                              </>
-                            ) : (
-                              <i>esercizio eliminato</i>
-                            )}
-                            {it.note && <span className="mr-note"> — {it.note}</span>}
-                          </td>
-                          <td className="mr-min">{it.minuti}′</td>
-                        </tr>
-                      )
-                    }),
-                )}
+                {rep.partite.map((m) => (
+                  <tr key={m.id}>
+                    <td>{dd(m.data)}</td>
+                    <td>{m.casa ? `GSD – ${m.avversario}` : `${m.avversario} – GSD`}</td>
+                    <td>{m.golFatti != null && m.golSubiti != null ? (m.casa ? `${m.golFatti}-${m.golSubiti}` : `${m.golSubiti}-${m.golFatti}`) : '—'}</td>
+                    <td>{m.puntiForza || '—'}</td>
+                    <td>{m.carenze || '—'}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-            {s.noteFinali && <p className="p-note">📝 {s.noteFinali}</p>}
-          </article>
-        ))}
-        {!rep.done.length && <p>Nessuna seduta segnata come svolta nel periodo.</p>}
-        {rep.nonSvolte.length > 0 && (
-          <p className="p-small">
-            <b>Pianificate non chiuse:</b> {rep.nonSvolte.map((s) => `${fmtDate(s.data, false)} ${s.titolo}`).join(' · ')}
-          </p>
+          </>
         )}
-      </section>
 
-      {rep.giocatori.length > 0 && (
-        <section className="mr-sec">
-          <h2 className="p-phase">Presenze per giocatore</h2>
-          <div className="mr-players">
-            {rep.giocatori.map((g) => (
-              <div key={g.player.id} className={g.perc < 60 ? 'mr-warn' : ''}>
-                <span>
-                  {g.player.cognome} {g.player.nome}
-                </span>
-                <b>
-                  {g.presenze}/{g.su} · {g.perc}%
-                </b>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {rep.partite.length > 0 && (
-        <section className="mr-sec">
-          <h2 className="p-phase">Partite del periodo</h2>
-          <table className="p-summary">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Partita</th>
-                <th>Risultato</th>
-                <th>Punti di forza</th>
-                <th>Carenze</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rep.partite.map((m) => (
-                <tr key={m.id}>
-                  <td>{fmtDate(m.data, false)}</td>
-                  <td>{m.casa ? `GSD – ${m.avversario}` : `${m.avversario} – GSD`}</td>
-                  <td>{m.golFatti != null && m.golSubiti != null ? (m.casa ? `${m.golFatti}-${m.golSubiti}` : `${m.golSubiti}-${m.golFatti}`) : '—'}</td>
-                  <td>{m.puntiForza || '—'}</td>
-                  <td>{m.carenze || '—'}</td>
-                </tr>
+        {rep.giocatori.length > 0 && (
+          <>
+            <h3 className="rs-h3">Presenze per bambino</h3>
+            <div className="mr-players">
+              {rep.giocatori.map((g) => (
+                <div key={g.player.id} className={g.perc < 60 ? 'mr-warn' : ''}>
+                  <span>
+                    {g.player.cognome} {g.player.nome}
+                  </span>
+                  <b>
+                    {g.presenze}/{g.su} · {g.perc}%
+                  </b>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+            </div>
+          </>
+        )}
 
-      {rep.esercizi.length > 0 && (
-        <section className="mr-sec mr-break">
-          <h2 className="p-phase">Esercizi utilizzati</h2>
-          <div className="mr-exgrid">
-            {rep.esercizi.map((x) => (
-              <ExThumb key={x.e.id} e={x.e} n={x.n} min={x.min} nuovo={rep.eserciziNuovi.includes(x.e)} />
-            ))}
-          </div>
-        </section>
-      )}
+        <h3 className="rs-h3">Limiti di questa valutazione</h3>
+        <ul className="rs-ul">
+          <li>Basata sulle sedute segnate come svolte in GSD Coach (esercizi e minuti registrati), non su cosa è successo in campo né sui singoli bambini.</li>
+          <li>Minuti assegnati all'area principale di ogni esercizio; i minuti degli obiettivi sono divisi tra gli obiettivi dell'esercizio.</li>
+          {rep.nonSvolte.length > 0 && <li>Sedute ancora "pianificate" escluse: {rep.nonSvolte.map((s) => `${dd(s.data)} ${s.titolo}`).join(' · ')}.</li>}
+        </ul>
 
-      <section className="mr-sec mr-notes">
-        <h2 className="p-phase">Note della riunione / decisioni</h2>
+        <h3 className="rs-h3">Note della riunione / decisioni</h3>
         <div className="mr-lines" />
       </section>
 
-      <footer className="p-foot">Generato da GSD Coach il {fmtDate(generato, false)} · sono conteggiate solo le sedute in stato "svolta".</footer>
+      {/* ===== sedute ===== */}
+      {rep.done.map((s) => (
+        <SessionPages key={s.id} s={s} gruppo={gruppo} exMap={exMap} />
+      ))}
+      <p className="rs-small rs-foot">Generato da GSD Coach il {ddy(generato)}.</p>
     </>
   )
 }
 
-function Kpi({ l, v, s }: { l: string; v: number | string; s?: string }) {
+function SessionPages({ s, gruppo, exMap }: { s: Session; gruppo: string; exMap: Map<string, Exercise> }) {
+  const items = ordered(s).filter((it) => exMap.has(it.exerciseId))
+  let clock = 0
+  const materiale = [...new Set(items.map((it) => exMap.get(it.exerciseId)!.materiale).filter(Boolean))]
+  const chiavi = items.flatMap((it) => bullets(exMap.get(it.exerciseId)!.coaching).slice(0, 1))
   return (
-    <div className="mr-kpi">
-      <small>{l}</small>
-      <b>{v}</b>
-      {s && <span>{s}</span>}
-    </div>
-  )
-}
-
-function Legenda({ aree }: { aree: Area[] }) {
-  return (
-    <p className="p-small">
-      {aree.map((a) => (
-        <span key={a} style={{ marginRight: 10 }}>
-          <i className="dot-c" style={{ background: AREA_COLOR[a] }} /> {AREA_LABEL[a]}
-        </span>
+    <>
+      <section className="rs-page">
+        <h1 className="rs-h1">
+          Seduta {ddy(s.data)} · {gruppo}
+        </h1>
+        <p className="rs-sub">
+          {s.obiettivo ? `Obiettivo: ${s.obiettivo} · ` : ''}
+          {sum(s.items.map((x) => x.minuti))}′ · presenti {presenti(s) ?? '—'}
+          {s.titolo ? ` · ${s.titolo}` : ''}
+        </p>
+        <table className="rs-tbl">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Min</th>
+              <th>Fase</th>
+              <th>Esercizio</th>
+              <th>Durata</th>
+              <th>Spazio</th>
+              <th>Obiettivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => {
+              const e = exMap.get(it.exerciseId)!
+              const a = clock
+              clock += it.minuti
+              return (
+                <tr key={it.uid}>
+                  <td>{i + 1}</td>
+                  <td>
+                    {a}–{clock}′
+                  </td>
+                  <td>{FASE_LABEL[it.fase]}</td>
+                  <td>
+                    <span className="mr-code" style={{ background: AREA_COLOR[e.area] }}>
+                      {e.code}
+                    </span>{' '}
+                    {e.title}
+                  </td>
+                  <td>{it.minuti}′</td>
+                  <td>{e.spazio}</td>
+                  <td>{e.obiettivi.slice(0, 3).join(', ')}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {chiavi.length > 0 && (
+          <>
+            <h3 className="rs-h3">Chiavi di conduzione</h3>
+            <ul className="rs-ul">
+              {chiavi.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {materiale.length > 0 && (
+          <>
+            <h3 className="rs-h3">Materiale</h3>
+            <ul className="rs-ul">
+              <li>{materiale.join(' · ')}</li>
+            </ul>
+          </>
+        )}
+        <Legenda />
+        {s.noteFinali && <div className="rs-box">📝 {s.noteFinali}</div>}
+      </section>
+      {items.map((it, i) => (
+        <ExercisePage key={it.uid} n={i + 1} it={it} e={exMap.get(it.exerciseId)!} />
       ))}
-    </p>
+    </>
   )
 }
 
-function ExThumb({ e, n, min, nuovo }: { e: Exercise; n: number; min: number; nuovo: boolean }) {
+function ExercisePage({ n, it, e }: { n: number; it: SessionItem; e: Exercise }) {
+  const perche = bullets(e.perche)
+  const come = bullets(e.descrizione)
+  const punti = bullets(e.coaching)
+  const varianti = bullets(e.varianti)
+  const rot = bullets(e.rotazione)
+  const steps = e.diagram.steps.length > 1 ? e.diagram.steps.slice(0, -1) : []
   return (
-    <div className="mr-ex">
-      <div className="p-diagram">
+    <section className="rs-page">
+      <div className="rs-exhead">
+        <b>
+          {n} · {e.title}
+        </b>
+        <span>
+          {FASE_LABEL[it.fase]} · {it.minuti}′ · {e.spazio}
+        </span>
+      </div>
+      <div className="rs-strip">
+        <b>Codice</b> {e.code} · <b>Spazio</b> {e.spazio} · <b>Giocatori</b> {e.giocatori} · <b>Tempo</b> {it.minuti}′ · <b>Materiale</b> {e.materiale || '—'}
+      </div>
+      <div className="rs-pitch">
         <PitchView d={e.diagram} overlay />
       </div>
-      <div className="mr-ex-t">
-        <span className="mr-code" style={{ background: AREA_COLOR[e.area] }}>
-          {e.code}
-        </span>{' '}
-        <b>{e.title}</b>
-        {nuovo && <span className="mr-new">nuovo</span>}
+      {steps.length > 0 && (
+        <p className="rs-small">
+          {steps.map((st, i) => (
+            <span key={i}>
+              <b>{i + 1}</b> {st.title}
+              {st.note ? ` — ${st.note}` : ''}
+              {i < steps.length - 1 ? ' · ' : ''}
+            </span>
+          ))}
+        </p>
+      )}
+      <div className="rs-2col">
+        <div>
+          <Block t="Perché" xs={perche} />
+          <Block t="Come si fa" xs={come} />
+          <Block t="Rotazione" xs={rot} />
+        </div>
+        <div>
+          <Block t="Punti da osservare" xs={punti} />
+          <Block t="Varianti" xs={varianti} />
+        </div>
       </div>
-      <div className="p-small">
-        {n}× · {min}′ · {e.obiettivi.slice(0, 3).join(', ')}
-      </div>
-    </div>
+      {it.note && <div className="rs-box">📝 {it.note}</div>}
+    </section>
   )
+}
+
+function Block({ t, xs }: { t: string; xs: string[] }) {
+  if (!xs.length) return null
+  return (
+    <>
+      <h4 className="rs-h4">{t}</h4>
+      <ul className="rs-ul">
+        {xs.map((x, i) => (
+          <li key={i}>{x}</li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+function Legenda() {
+  return <div className="rs-legend">Legenda campetto: linea bianca = passaggio · tratteggio giallo = movimento senza palla · linea ondulata = conduzione · rosso = tiro</div>
 }

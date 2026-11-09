@@ -28,6 +28,13 @@ export interface AreaRow {
   delta: number | null
 }
 
+export interface ValRow {
+  aspetto: string
+  esito: string
+  implicazione: string
+  alert?: boolean
+}
+
 export interface MonthlyReport {
   from: string
   to: string
@@ -50,9 +57,16 @@ export interface MonthlyReport {
   bilancio: { v: number; p: number; s: number; gf: number; gs: number }
   mesocicli: Mesocycle[]
   puntiRiunione: string[]
+  /** minuti per area in ogni seduta svolta (stesso ordine di done) */
+  matrice: { area: Area; perSeduta: number[]; tot: number; perc: number }[]
+  /** obiettivi presenti in 2+ sedute, con le date */
+  temi: { o: string; date: string[] }[]
+  valutazione: ValRow[]
+  azioni: string[]
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
 /** primo e ultimo giorno del mese "YYYY-MM" */
 export function monthRange(ym: string): [string, string] {
@@ -166,7 +180,87 @@ export function buildMonthlyReport(db: Pick<DB, 'sessions' | 'exercises' | 'cycl
     puntiRiunione.push('Nessuna seduta segnata come svolta nel periodo.')
   }
 
-  return { from, to, gruppo, done, nonSvolte, agg, aree, perFase, obiettivi, maiAllenati, esercizi, eserciziNuovi, settimane, presenzeMedie, presenzeRegistrate: conAppello.length, giocatori, partite, bilancio, mesocicli, puntiRiunione }
+  // matrice aree × sedute
+  const matrice = AREE.map((a) => {
+    const perSeduta = done.map((s) => sum(s.items.filter((it) => exMap.get(it.exerciseId)?.area === a).map((it) => it.minuti)))
+    const tot = sum(perSeduta)
+    return { area: a, perSeduta, tot, perc: pct(tot, agg.minutiTot) }
+  })
+    .filter((r) => r.tot > 0)
+    .sort((x, y) => y.tot - x.tot)
+
+  const obDate = new Map<string, string[]>()
+  for (const s of done) {
+    const obs = new Set(s.items.flatMap((it) => exMap.get(it.exerciseId)?.obiettivi ?? []))
+    for (const o of obs) obDate.set(o, [...(obDate.get(o) ?? []), s.data])
+  }
+  const temi = [...obDate.entries()]
+    .filter(([, d]) => d.length >= 2)
+    .map(([o, date]) => ({ o, date }))
+    .sort((a, b) => b.date.length - a.date.length)
+
+  // valutazione: continuità delle aree, peso vs target, ultime sedute, partita, obiettivi scoperti, presenze
+  const valutazione: ValRow[] = []
+  const azioni: string[] = []
+  const N = done.length
+  const ultime = done.slice(-3)
+  const dd = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+  if (N) {
+    for (const r of matrice) {
+      const n = r.perSeduta.filter((m) => m > 0).length
+      const dentroUltime = ultime.some((s) => s.items.some((it) => exMap.get(it.exerciseId)?.area === r.area))
+      const row = aree.find((x) => x.area === r.area)
+      const parts = [`${n}/${N} sedute (${r.tot}′, ${r.perc}%)`]
+      if (row?.target != null) parts.push(`target ${row.target}%`)
+      let impl = n / N >= 0.6 ? 'Presenza costante: base del lavoro del periodo' : 'Presenza saltuaria'
+      let alert = false
+      if (row?.delta != null && row.delta >= 8) ((impl = `Sopra target di ${row.delta} punti: ridurre`), (alert = true))
+      else if (row?.delta != null && row.delta <= -8) ((impl = `Sotto target di ${-row.delta} punti: aumentare`), (alert = true))
+      if (N >= 4 && !dentroUltime) ((impl = `Assente nelle ultime 3 sedute (dal ${dd(ultime[0].data)}): riprendere`), (alert = true))
+      valutazione.push({ aspetto: AREA_LABEL[r.area], esito: parts.join(' · '), implicazione: impl, alert })
+    }
+    for (const r of aree.filter((x) => x.min === 0 && (x.target ?? 0) > 0)) {
+      valutazione.push({ aspetto: AREA_LABEL[r.area], esito: `mai allenata (target ${r.target}%)`, implicazione: 'Inserire nel prossimo microciclo', alert: true })
+      azioni.push(`Inserire ${AREA_LABEL[r.area].toLowerCase()} (target ${r.target}%) almeno 1 volta a settimana.`)
+    }
+    const conPartita = done.filter((s) => s.items.some((it) => exMap.get(it.exerciseId)?.area === 'partita'))
+    if (conPartita.length < N) {
+      const senza = done.filter((s) => !conPartita.includes(s)).map((s) => dd(s.data))
+      valutazione.push({ aspetto: 'Partita a fine seduta', esito: `${conPartita.length}/${N} sedute (assente ${senza.join(', ')})`, implicazione: 'Verifica del transfer in gioco mancata in quelle sedute', alert: conPartita.length / N < 0.7 })
+      if (conPartita.length / N < 0.7) azioni.push('10′ di partita fissi a fine seduta, con 2–3 note di osservazione.')
+    }
+    const chiave = ['conduzione', 'dribbling', 'passaggio', 'ricezione', 'controllo orientato', 'tiro', 'smarcamento', 'postura del corpo', 'uno-due']
+    const poco = chiave.filter((o) => (agg.perObiettivo[o] ?? 0) < 15)
+    if (poco.length || maiAllenati.length) {
+      valutazione.push({
+        aspetto: 'Poco o mai allenato',
+        esito: [poco.length ? `<15′: ${poco.join(', ')}` : '', maiAllenati.length ? `mai: ${maiAllenati.slice(0, 8).join(', ')}${maiAllenati.length > 8 ? '…' : ''}` : ''].filter(Boolean).join(' · '),
+        implicazione: poco.length ? 'Obiettivi chiave della categoria da riprendere' : 'Valutare se coerenti con la categoria',
+        alert: poco.length > 0,
+      })
+      if (poco.length) azioni.push(`Esercizio dedicato a ${poco.slice(0, 3).join(', ')} nelle prime sedute del prossimo periodo.`)
+    }
+    const obUltime = new Set(ultime.flatMap((s) => s.items.flatMap((it) => exMap.get(it.exerciseId)?.obiettivi ?? [])))
+    const spariti = N >= 4 ? obiettivi.filter((o) => o.min >= 20 && !obUltime.has(o.o)).map((o) => o.o) : []
+    if (spariti.length) {
+      valutazione.push({ aspetto: 'Obiettivi spariti', esito: `${spariti.slice(0, 5).join(', ')}: assenti nelle ultime 3 sedute`, implicazione: 'Rischio di perdere il lavoro fatto a inizio periodo', alert: true })
+      azioni.push(`Riprendere ${spariti.slice(0, 2).join(' e ')} come attivazione tecnica (10′).`)
+    }
+    const ripetuti = esercizi.filter((x) => x.n >= Math.max(3, Math.ceil(N / 2)))
+    if (ripetuti.length) {
+      valutazione.push({ aspetto: 'Esercizi ripetuti', esito: ripetuti.map((x) => `${x.e.code} ×${x.n}`).join(', '), implicazione: 'Proporre progressioni o varianti per non perdere stimolo' })
+      azioni.push(`Variante o progressione per ${ripetuti.map((x) => x.e.code).join(', ')}.`)
+    }
+    valutazione.push({
+      aspetto: 'Presenze',
+      esito: presenzeMedie != null ? `media ${presenzeMedie} a seduta${conAppello.length ? ` · appello in ${conAppello.length}/${N}` : ''}` : 'non registrate',
+      implicazione: giocatori.some((g) => g.perc < 60) ? `Sotto il 60%: ${giocatori.filter((g) => g.perc < 60).map((g) => g.player.nome).join(', ')}` : conAppello.length ? 'Nessun bambino sotto il 60%' : "Segnare l'appello per le presenze per bambino",
+      alert: giocatori.some((g) => g.perc < 60),
+    })
+    if (partite.length) valutazione.push({ aspetto: 'Partite', esito: `${partite.length} giocate · V${bilancio.v} N${bilancio.p} P${bilancio.s} · gol ${bilancio.gf}-${bilancio.gs}`, implicazione: 'Carenze annotate nelle partite: vedi tabella partite' })
+  }
+
+  return { matrice, temi, valutazione, azioni, from, to, gruppo, done, nonSvolte, agg, aree, perFase, obiettivi, maiAllenati, esercizi, eserciziNuovi, settimane, presenzeMedie, presenzeRegistrate: conAppello.length, giocatori, partite, bilancio, mesocicli, puntiRiunione }
 }
 
 export function presenti(s: Session): number | null {
